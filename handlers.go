@@ -733,6 +733,12 @@ func (s *server) SendDocument() http.HandlerFunc {
 				QuotedMessage: &waProto.Message{Conversation: proto.String("")},
 			}
 		}
+		if(t.ContextInfo.MentionedJID != nil) {
+			if(msg.ExtendedTextMessage.ContextInfo == nil) {
+				msg.ExtendedTextMessage.ContextInfo = &waProto.ContextInfo{}
+			}
+			msg.ExtendedTextMessage.ContextInfo.MentionedJID = t.ContextInfo.MentionedJID
+		}
 
 		resp, err = clientPointer[userid].SendMessage(context.Background(), recipient, msg, whatsmeow.SendRequestExtra{ID: msgid})
 		if err != nil {
@@ -848,6 +854,12 @@ func (s *server) SendAudio() http.HandlerFunc {
 				Participant:   proto.String(*t.ContextInfo.Participant),
 				QuotedMessage: &waProto.Message{Conversation: proto.String("")},
 			}
+		}
+		if(t.ContextInfo.MentionedJID != nil) {
+			if(msg.ExtendedTextMessage.ContextInfo == nil) {
+				msg.ExtendedTextMessage.ContextInfo = &waProto.ContextInfo{}
+			}
+			msg.ExtendedTextMessage.ContextInfo.MentionedJID = t.ContextInfo.MentionedJID
 		}
 
 		resp, err = clientPointer[userid].SendMessage(context.Background(), recipient, msg, whatsmeow.SendRequestExtra{ID: msgid})
@@ -988,11 +1000,17 @@ func (s *server) SendImage() http.HandlerFunc {
 		}}
 
 		if t.ContextInfo.StanzaID != nil {
-			msg.ExtendedTextMessage.ContextInfo = &waProto.ContextInfo{
-				StanzaID:      proto.String(*t.ContextInfo.StanzaID),
-				Participant:   proto.String(*t.ContextInfo.Participant),
-				QuotedMessage: &waProto.Message{Conversation: proto.String("")},
+			if(msg.ImageMessage.ContextInfo == nil) {
+				msg.ImageMessage.ContextInfo = &waProto.ContextInfo {
+					StanzaID:      proto.String(*t.ContextInfo.StanzaID),
+					Participant:   proto.String(*t.ContextInfo.Participant),
+					QuotedMessage: &waProto.Message{Conversation: proto.String("")},
+				}
 			}
+		}
+
+		if(t.ContextInfo.MentionedJID != nil) {
+			msg.ImageMessage.ContextInfo.MentionedJID = t.ContextInfo.MentionedJID
 		}
 
 		resp, err = clientPointer[userid].SendMessage(context.Background(), recipient, msg, whatsmeow.SendRequestExtra{ID: msgid})
@@ -1105,6 +1123,12 @@ func (s *server) SendSticker() http.HandlerFunc {
 				Participant:   proto.String(*t.ContextInfo.Participant),
 				QuotedMessage: &waProto.Message{Conversation: proto.String("")},
 			}
+		}
+		if(t.ContextInfo.MentionedJID != nil) {
+			if(msg.ExtendedTextMessage.ContextInfo == nil) {
+				msg.ExtendedTextMessage.ContextInfo = &waProto.ContextInfo{}
+			}
+			msg.ExtendedTextMessage.ContextInfo.MentionedJID = t.ContextInfo.MentionedJID
 		}
 
 		resp, err = clientPointer[userid].SendMessage(context.Background(), recipient, msg, whatsmeow.SendRequestExtra{ID: msgid})
@@ -1220,6 +1244,12 @@ func (s *server) SendVideo() http.HandlerFunc {
 				QuotedMessage: &waProto.Message{Conversation: proto.String("")},
 			}
 		}
+		if(t.ContextInfo.MentionedJID != nil) {
+			if(msg.ExtendedTextMessage.ContextInfo == nil) {
+				msg.ExtendedTextMessage.ContextInfo = &waProto.ContextInfo{}
+			}
+			msg.ExtendedTextMessage.ContextInfo.MentionedJID = t.ContextInfo.MentionedJID
+		}
 
 		resp, err = clientPointer[userid].SendMessage(context.Background(), recipient, msg, whatsmeow.SendRequestExtra{ID: msgid})
 		if err != nil {
@@ -1307,6 +1337,12 @@ func (s *server) SendContact() http.HandlerFunc {
 				Participant:   proto.String(*t.ContextInfo.Participant),
 				QuotedMessage: &waProto.Message{Conversation: proto.String("")},
 			}
+		}
+		if(t.ContextInfo.MentionedJID != nil) {
+			if(msg.ExtendedTextMessage.ContextInfo == nil) {
+				msg.ExtendedTextMessage.ContextInfo = &waProto.ContextInfo{}
+			}
+			msg.ExtendedTextMessage.ContextInfo.MentionedJID = t.ContextInfo.MentionedJID
 		}
 
 		resp, err = clientPointer[userid].SendMessage(context.Background(), recipient, msg, whatsmeow.SendRequestExtra{ID: msgid})
@@ -1397,6 +1433,12 @@ func (s *server) SendLocation() http.HandlerFunc {
 				Participant:   proto.String(*t.ContextInfo.Participant),
 				QuotedMessage: &waProto.Message{Conversation: proto.String("")},
 			}
+		}
+		if(t.ContextInfo.MentionedJID != nil) {
+			if(msg.ExtendedTextMessage.ContextInfo == nil) {
+				msg.ExtendedTextMessage.ContextInfo = &waProto.ContextInfo{}
+			}
+			msg.ExtendedTextMessage.ContextInfo.MentionedJID = t.ContextInfo.MentionedJID
 		}
 
 		resp, err = clientPointer[userid].SendMessage(context.Background(), recipient, msg, whatsmeow.SendRequestExtra{ID: msgid})
@@ -1732,6 +1774,12 @@ func (s *server) SendMessage() http.HandlerFunc {
 				Participant:   proto.String(*t.ContextInfo.Participant),
 				QuotedMessage: &waProto.Message{Conversation: proto.String("")},
 			}
+		}
+		if(t.ContextInfo.MentionedJID != nil) {
+			if(msg.ExtendedTextMessage.ContextInfo == nil) {
+				msg.ExtendedTextMessage.ContextInfo = &waProto.ContextInfo{}
+			}
+			msg.ExtendedTextMessage.ContextInfo.MentionedJID = t.ContextInfo.MentionedJID
 		}
 
 		resp, err = clientPointer[userid].SendMessage(context.Background(), recipient, msg, whatsmeow.SendRequestExtra{ID: msgid})
