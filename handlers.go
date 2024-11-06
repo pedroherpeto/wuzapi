@@ -733,8 +733,8 @@ func (s *server) SendDocument() http.HandlerFunc {
 				QuotedMessage: &waProto.Message{Conversation: proto.String("")},
 			}
 		}
-		if(t.ContextInfo.MentionedJID != nil) {
-			if(msg.ExtendedTextMessage.ContextInfo == nil) {
+		if t.ContextInfo.MentionedJID != nil {
+			if msg.ExtendedTextMessage.ContextInfo == nil {
 				msg.ExtendedTextMessage.ContextInfo = &waProto.ContextInfo{}
 			}
 			msg.ExtendedTextMessage.ContextInfo.MentionedJID = t.ContextInfo.MentionedJID
@@ -855,8 +855,8 @@ func (s *server) SendAudio() http.HandlerFunc {
 				QuotedMessage: &waProto.Message{Conversation: proto.String("")},
 			}
 		}
-		if(t.ContextInfo.MentionedJID != nil) {
-			if(msg.ExtendedTextMessage.ContextInfo == nil) {
+		if t.ContextInfo.MentionedJID != nil {
+			if msg.ExtendedTextMessage.ContextInfo == nil {
 				msg.ExtendedTextMessage.ContextInfo = &waProto.ContextInfo{}
 			}
 			msg.ExtendedTextMessage.ContextInfo.MentionedJID = t.ContextInfo.MentionedJID
@@ -1000,8 +1000,8 @@ func (s *server) SendImage() http.HandlerFunc {
 		}}
 
 		if t.ContextInfo.StanzaID != nil {
-			if(msg.ImageMessage.ContextInfo == nil) {
-				msg.ImageMessage.ContextInfo = &waProto.ContextInfo {
+			if msg.ImageMessage.ContextInfo == nil {
+				msg.ImageMessage.ContextInfo = &waProto.ContextInfo{
 					StanzaID:      proto.String(*t.ContextInfo.StanzaID),
 					Participant:   proto.String(*t.ContextInfo.Participant),
 					QuotedMessage: &waProto.Message{Conversation: proto.String("")},
@@ -1009,7 +1009,7 @@ func (s *server) SendImage() http.HandlerFunc {
 			}
 		}
 
-		if(t.ContextInfo.MentionedJID != nil) {
+		if t.ContextInfo.MentionedJID != nil {
 			msg.ImageMessage.ContextInfo.MentionedJID = t.ContextInfo.MentionedJID
 		}
 
@@ -1124,8 +1124,8 @@ func (s *server) SendSticker() http.HandlerFunc {
 				QuotedMessage: &waProto.Message{Conversation: proto.String("")},
 			}
 		}
-		if(t.ContextInfo.MentionedJID != nil) {
-			if(msg.ExtendedTextMessage.ContextInfo == nil) {
+		if t.ContextInfo.MentionedJID != nil {
+			if msg.ExtendedTextMessage.ContextInfo == nil {
 				msg.ExtendedTextMessage.ContextInfo = &waProto.ContextInfo{}
 			}
 			msg.ExtendedTextMessage.ContextInfo.MentionedJID = t.ContextInfo.MentionedJID
@@ -1244,8 +1244,8 @@ func (s *server) SendVideo() http.HandlerFunc {
 				QuotedMessage: &waProto.Message{Conversation: proto.String("")},
 			}
 		}
-		if(t.ContextInfo.MentionedJID != nil) {
-			if(msg.ExtendedTextMessage.ContextInfo == nil) {
+		if t.ContextInfo.MentionedJID != nil {
+			if msg.ExtendedTextMessage.ContextInfo == nil {
 				msg.ExtendedTextMessage.ContextInfo = &waProto.ContextInfo{}
 			}
 			msg.ExtendedTextMessage.ContextInfo.MentionedJID = t.ContextInfo.MentionedJID
@@ -1338,8 +1338,8 @@ func (s *server) SendContact() http.HandlerFunc {
 				QuotedMessage: &waProto.Message{Conversation: proto.String("")},
 			}
 		}
-		if(t.ContextInfo.MentionedJID != nil) {
-			if(msg.ExtendedTextMessage.ContextInfo == nil) {
+		if t.ContextInfo.MentionedJID != nil {
+			if msg.ExtendedTextMessage.ContextInfo == nil {
 				msg.ExtendedTextMessage.ContextInfo = &waProto.ContextInfo{}
 			}
 			msg.ExtendedTextMessage.ContextInfo.MentionedJID = t.ContextInfo.MentionedJID
@@ -1434,8 +1434,8 @@ func (s *server) SendLocation() http.HandlerFunc {
 				QuotedMessage: &waProto.Message{Conversation: proto.String("")},
 			}
 		}
-		if(t.ContextInfo.MentionedJID != nil) {
-			if(msg.ExtendedTextMessage.ContextInfo == nil) {
+		if t.ContextInfo.MentionedJID != nil {
+			if msg.ExtendedTextMessage.ContextInfo == nil {
 				msg.ExtendedTextMessage.ContextInfo = &waProto.ContextInfo{}
 			}
 			msg.ExtendedTextMessage.ContextInfo.MentionedJID = t.ContextInfo.MentionedJID
@@ -1775,8 +1775,8 @@ func (s *server) SendMessage() http.HandlerFunc {
 				QuotedMessage: &waProto.Message{Conversation: proto.String("")},
 			}
 		}
-		if(t.ContextInfo.MentionedJID != nil) {
-			if(msg.ExtendedTextMessage.ContextInfo == nil) {
+		if t.ContextInfo.MentionedJID != nil {
+			if msg.ExtendedTextMessage.ContextInfo == nil {
 				msg.ExtendedTextMessage.ContextInfo = &waProto.ContextInfo{}
 			}
 			msg.ExtendedTextMessage.ContextInfo.MentionedJID = t.ContextInfo.MentionedJID
@@ -2570,6 +2570,77 @@ func (s *server) DownloadAudio() http.HandlerFunc {
 		} else {
 			s.Respond(w, r, http.StatusOK, string(responseJson))
 		}
+		return
+	}
+}
+
+// Edit
+func (s *server) Edit() http.HandlerFunc {
+
+	type textStruct struct {
+		Chat    string
+		Phone   string
+		Id      string
+		NewText string
+	}
+
+	return func(w http.ResponseWriter, r *http.Request) {
+
+		txtid := r.Context().Value("userinfo").(Values).Get("Id")
+		userid, _ := strconv.Atoi(txtid)
+
+		if clientPointer[userid] == nil {
+			s.Respond(w, r, http.StatusInternalServerError, errors.New("No session"))
+			return
+		}
+
+		decoder := json.NewDecoder(r.Body)
+		var t textStruct
+		err := decoder.Decode(&t)
+		if err != nil {
+			s.Respond(w, r, http.StatusBadRequest, errors.New("Could not decode Payload"))
+			return
+		}
+
+		if t.Chat == "" || t.Phone == "" || t.Id == "" || t.NewText == "" {
+			s.Respond(w, r, http.StatusBadRequest, errors.New("Missing Chat, Phone, Id, or NewText in Payload"))
+			return
+		}
+
+		// recipient, ok := parseJID(t.Phone)
+		chat, ok := parseJID(t.Chat)
+		if !ok {
+			s.Respond(w, r, http.StatusBadRequest, errors.New("Could not parse Group JID"))
+			return
+		}
+
+		fromMe := strings.HasPrefix(t.Id, "me:")
+		msgid := t.Id
+		if fromMe {
+			msgid = t.Id[len("me:"):]
+		}
+
+		// Construindo a edição usando BuildEdit
+		msg := clientPointer[userid].BuildEdit(chat, types.MessageID(msgid), &waProto.Message{
+			Conversation: proto.String(t.NewText),
+		})
+
+		// Enviando a mensagem de edição
+		resp, err := clientPointer[userid].SendMessage(context.Background(), chat, msg)
+		if err != nil {
+			s.Respond(w, r, http.StatusInternalServerError, errors.New(fmt.Sprintf("Error editing message: %v", err)))
+			return
+		}
+
+		log.Info().Str("timestamp", fmt.Sprintf("%d", resp.Timestamp)).Str("id", msgid).Msg("Edit sent")
+		response := map[string]interface{}{"Details": "Sent", "Timestamp": resp.Timestamp, "Id": msgid}
+		responseJson, err := json.Marshal(response)
+		if err != nil {
+			s.Respond(w, r, http.StatusInternalServerError, err)
+		} else {
+			s.Respond(w, r, http.StatusOK, string(responseJson))
+		}
+
 		return
 	}
 }
