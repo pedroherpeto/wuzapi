@@ -767,6 +767,8 @@ func (s *server) SendAudio() http.HandlerFunc {
 		Caption     string
 		Id          string
 		ContextInfo waProto.ContextInfo
+		Seconds     uint32
+		Waveform    []byte
 	}
 
 	return func(w http.ResponseWriter, r *http.Request) {
@@ -846,6 +848,8 @@ func (s *server) SendAudio() http.HandlerFunc {
 			FileSHA256:    uploaded.FileSHA256,
 			FileLength:    proto.Uint64(uint64(len(filedata))),
 			PTT:           &ptt,
+			Seconds:       proto.Uint32(t.Seconds),
+			Waveform:      t.Waveform,
 		}}
 
 		if t.ContextInfo.StanzaID != nil {
@@ -2724,11 +2728,11 @@ func (s *server) Revoke() http.HandlerFunc {
 // React
 func (s *server) React() http.HandlerFunc {
 
-	type textStruct struct {
-		Chat  string
-		Phone string
-		Body  string
-		Id    string
+	type reactionStruct struct {
+		Chat     string
+		Phone    string
+		Id       string
+		Reaction string
 	}
 
 	return func(w http.ResponseWriter, r *http.Request) {
@@ -2742,86 +2746,67 @@ func (s *server) React() http.HandlerFunc {
 		}
 
 		decoder := json.NewDecoder(r.Body)
-		var t textStruct
+		var t reactionStruct
 		err := decoder.Decode(&t)
 		if err != nil {
 			s.Respond(w, r, http.StatusBadRequest, errors.New("Could not decode Payload"))
 			return
 		}
 
-		if t.Chat == "" || t.Phone == "" || t.Body == "" || t.Id == "" {
-			s.Respond(w, r, http.StatusBadRequest, errors.New("Missing Phone, Body, or Id in Payload"))
+		if t.Chat == "" || t.Phone == "" || t.Id == "" || t.Reaction == "" {
+			s.Respond(w, r, http.StatusBadRequest, errors.New("Missing Chat, Phone, Id, or Reaction in Payload"))
 			return
 		}
 
 		recipient, ok := parseJID(t.Phone)
-		if !ok {
-			s.Respond(w, r, http.StatusBadRequest, errors.New("Could not parse recipient JID"))
-			return
-		}
-
 		chat, ok := parseJID(t.Chat)
 		if !ok {
-			s.Respond(w, r, http.StatusBadRequest, errors.New("Could not parse chat JID"))
+			s.Respond(w, r, http.StatusBadRequest, errors.New("Could not parse Group JID"))
 			return
 		}
 
-		// Defina `fromMe` para identificar se a mensagem é enviada por você
 		fromMe := strings.HasPrefix(t.Id, "me:")
 		msgid := t.Id
 		if fromMe {
 			msgid = t.Id[len("me:"):]
 		}
 
-		reaction := t.Body
-		if reaction == "remove" {
-			reaction = ""
+		// Define o `sender` para o BuildReaction
+		var sender types.JID
+		if fromMe {
+			sender = types.EmptyJID // Reagindo a uma mensagem enviada por você
+		} else {
+			sender = recipient // Reagindo a uma mensagem de outro usuário
 		}
 
-		// Ajuste `chat` e `recipient` com base em `fromMe`
-		if fromMe {
-			// Mensagem enviada por você
-			msg := clientPointer[userid].BuildReaction(chat, recipient, msgid, reaction)
-			resp, err := clientPointer[userid].SendMessage(context.Background(), recipient, msg)
-			if err != nil {
-				s.Respond(w, r, http.StatusInternalServerError, errors.New(fmt.Sprintf("Error sending message: %v", err)))
-				return
-			}
-			// Registro e resposta
-			log.Info().Str("timestamp", fmt.Sprintf("%d", resp.Timestamp)).Str("id", msgid).Msg("Reaction sent")
-			response := map[string]interface{}{"Details": "Sent", "Timestamp": resp.Timestamp, "Id": msgid}
-			responseJson, err := json.Marshal(response)
-			if err != nil {
-				s.Respond(w, r, http.StatusInternalServerError, err)
-			} else {
-				s.Respond(w, r, http.StatusOK, string(responseJson))
-			}
+		// Construindo a reação usando BuildReaction
+		msg := clientPointer[userid].BuildReaction(chat, sender, types.MessageID(msgid), t.Reaction)
+
+		// Enviando a mensagem de reação
+		resp, err := clientPointer[userid].SendMessage(context.Background(), chat, msg)
+		if err != nil {
+			s.Respond(w, r, http.StatusInternalServerError, errors.New(fmt.Sprintf("Error sending reaction: %v", err)))
+			return
+		}
+
+		log.Info().Str("timestamp", fmt.Sprintf("%d", resp.Timestamp)).Str("id", msgid).Msg("Reaction sent")
+		response := map[string]interface{}{"Details": "Sent", "Timestamp": resp.Timestamp, "Id": msgid}
+		responseJson, err := json.Marshal(response)
+		if err != nil {
+			s.Respond(w, r, http.StatusInternalServerError, err)
 		} else {
-			// Mensagem recebida
-			msg := clientPointer[userid].BuildReaction(recipient, chat, msgid, reaction)
-			resp, err := clientPointer[userid].SendMessage(context.Background(), recipient, msg)
-			if err != nil {
-				s.Respond(w, r, http.StatusInternalServerError, errors.New(fmt.Sprintf("Error sending message: %v", err)))
-				return
-			}
-			// Registro e resposta
-			log.Info().Str("timestamp", fmt.Sprintf("%d", resp.Timestamp)).Str("id", msgid).Msg("Reaction sent")
-			response := map[string]interface{}{"Details": "Sent", "Timestamp": resp.Timestamp, "Id": msgid}
-			responseJson, err := json.Marshal(response)
-			if err != nil {
-				s.Respond(w, r, http.StatusInternalServerError, err)
-			} else {
-				s.Respond(w, r, http.StatusOK, string(responseJson))
-			}
+			s.Respond(w, r, http.StatusOK, string(responseJson))
 		}
 
 		return
 	}
 }
 
+// React
 // func (s *server) React() http.HandlerFunc {
 
 // 	type textStruct struct {
+// 		Chat  string
 // 		Phone string
 // 		Body  string
 // 		Id    string
@@ -2837,9 +2822,6 @@ func (s *server) React() http.HandlerFunc {
 // 			return
 // 		}
 
-// 		msgid := ""
-// 		var resp whatsmeow.SendResponse
-
 // 		decoder := json.NewDecoder(r.Body)
 // 		var t textStruct
 // 		err := decoder.Decode(&t)
@@ -2848,66 +2830,70 @@ func (s *server) React() http.HandlerFunc {
 // 			return
 // 		}
 
-// 		if t.Phone == "" {
-// 			s.Respond(w, r, http.StatusBadRequest, errors.New("Missing Phone in Payload"))
-// 			return
-// 		}
-
-// 		if t.Body == "" {
-// 			s.Respond(w, r, http.StatusBadRequest, errors.New("Missing Body in Payload"))
+// 		if t.Chat == "" || t.Phone == "" || t.Body == "" || t.Id == "" {
+// 			s.Respond(w, r, http.StatusBadRequest, errors.New("Missing Phone, Body, or Id in Payload"))
 // 			return
 // 		}
 
 // 		recipient, ok := parseJID(t.Phone)
 // 		if !ok {
-// 			log.Error().Msg(fmt.Sprintf("%s", err))
-// 			s.Respond(w, r, http.StatusBadRequest, errors.New("Could not parse Group JID"))
+// 			s.Respond(w, r, http.StatusBadRequest, errors.New("Could not parse recipient JID"))
 // 			return
 // 		}
 
-// 		if t.Id == "" {
-// 			s.Respond(w, r, http.StatusBadRequest, errors.New("Missing Id in Payload"))
+// 		chat, ok := parseJID(t.Chat)
+// 		if !ok {
+// 			s.Respond(w, r, http.StatusBadRequest, errors.New("Could not parse chat JID"))
 // 			return
-// 		} else {
-// 			msgid = t.Id
 // 		}
 
-// 		fromMe := false
-// 		if strings.HasPrefix(msgid, "me:") {
-// 			fromMe = true
-// 			msgid = msgid[len("me:"):]
+// 		// Defina `fromMe` para identificar se a mensagem é enviada por você
+// 		fromMe := strings.HasPrefix(t.Id, "me:")
+// 		msgid := t.Id
+// 		if fromMe {
+// 			msgid = t.Id[len("me:"):]
 // 		}
+
 // 		reaction := t.Body
 // 		if reaction == "remove" {
 // 			reaction = ""
 // 		}
 
-// 		msg := &waProto.Message{
-// 			ReactionMessage: &waProto.ReactionMessage{
-// 				Key: &waProto.MessageKey{
-// 					RemoteJID: proto.String(recipient.String()),
-// 					FromMe:    proto.Bool(fromMe),
-// 					ID:        proto.String(msgid),
-// 				},
-// 				Text:              proto.String(reaction),
-// 				GroupingKey:       proto.String(reaction),
-// 				SenderTimestampMS: proto.Int64(time.Now().UnixMilli()),
-// 			},
-// 		}
-
-// 		resp, err = clientPointer[userid].SendMessage(context.Background(), recipient, msg, whatsmeow.SendRequestExtra{ID: msgid})
-// 		if err != nil {
-// 			s.Respond(w, r, http.StatusInternalServerError, errors.New(fmt.Sprintf("Error sending message: %v", err)))
-// 			return
-// 		}
-
-// 		log.Info().Str("timestamp", fmt.Sprintf("%d", resp.Timestamp)).Str("id", msgid).Msg("Message sent")
-// 		response := map[string]interface{}{"Details": "Sent", "Timestamp": resp.Timestamp, "Id": msgid}
-// 		responseJson, err := json.Marshal(response)
-// 		if err != nil {
-// 			s.Respond(w, r, http.StatusInternalServerError, err)
+// 		// Ajuste `chat` e `recipient` com base em `fromMe`
+// 		if fromMe {
+// 			// Mensagem enviada por você
+// 			msg := clientPointer[userid].BuildReaction(chat, recipient, msgid, reaction)
+// 			resp, err := clientPointer[userid].SendMessage(context.Background(), recipient, msg)
+// 			if err != nil {
+// 				s.Respond(w, r, http.StatusInternalServerError, errors.New(fmt.Sprintf("Error sending message: %v", err)))
+// 				return
+// 			}
+// 			// Registro e resposta
+// 			log.Info().Str("timestamp", fmt.Sprintf("%d", resp.Timestamp)).Str("id", msgid).Msg("Reaction sent")
+// 			response := map[string]interface{}{"Details": "Sent", "Timestamp": resp.Timestamp, "Id": msgid}
+// 			responseJson, err := json.Marshal(response)
+// 			if err != nil {
+// 				s.Respond(w, r, http.StatusInternalServerError, err)
+// 			} else {
+// 				s.Respond(w, r, http.StatusOK, string(responseJson))
+// 			}
 // 		} else {
-// 			s.Respond(w, r, http.StatusOK, string(responseJson))
+// 			// Mensagem recebida
+// 			msg := clientPointer[userid].BuildReaction(recipient, chat, msgid, reaction)
+// 			resp, err := clientPointer[userid].SendMessage(context.Background(), recipient, msg)
+// 			if err != nil {
+// 				s.Respond(w, r, http.StatusInternalServerError, errors.New(fmt.Sprintf("Error sending message: %v", err)))
+// 				return
+// 			}
+// 			// Registro e resposta
+// 			log.Info().Str("timestamp", fmt.Sprintf("%d", resp.Timestamp)).Str("id", msgid).Msg("Reaction sent")
+// 			response := map[string]interface{}{"Details": "Sent", "Timestamp": resp.Timestamp, "Id": msgid}
+// 			responseJson, err := json.Marshal(response)
+// 			if err != nil {
+// 				s.Respond(w, r, http.StatusInternalServerError, err)
+// 			} else {
+// 				s.Respond(w, r, http.StatusOK, string(responseJson))
+// 			}
 // 		}
 
 // 		return
