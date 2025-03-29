@@ -22,6 +22,7 @@ import (
 	"github.com/jmoiron/sqlx" // Importação do sqlx
 	"github.com/mdp/qrterminal/v3"
 	"github.com/patrickmn/go-cache"
+	"github.com/rs/zerolog/log"
 	"github.com/skip2/go-qrcode"
 	"go.mau.fi/whatsmeow"
 	"go.mau.fi/whatsmeow/appstate"
@@ -193,6 +194,13 @@ func (s *server) startClient(userID int, textjid string, token string, subscript
 		}
 	})
 
+	// NEW: set proxy if defined in DB (assumes users table contains proxy_url column)
+	var proxyURL string
+	err = s.db.Get(&proxyURL, "SELECT proxy_url FROM users WHERE id=$1", userID)
+	if err == nil && proxyURL != "" {
+		clientHttp[userID].SetProxy(proxyURL)
+	}
+
 	if client.Store.ID == nil {
 		// No ID stored, new login
 
@@ -262,7 +270,7 @@ func (s *server) startClient(userID int, textjid string, token string, subscript
 			log.Info().Str("userid", strconv.Itoa(userID)).Msg("Received kill signal")
 			client.Disconnect()
 			delete(clientPointer, userID)
-			sqlStmt := `UPDATE users SET, qrcode=$1 connected=0 WHERE id=$1`
+			sqlStmt := `UPDATE users SET qrcode=$1 connected=0 WHERE id=$1`
 			_, err := s.db.Exec(sqlStmt, "", userID)
 			if err != nil {
 				log.Error().Err(err).Msg(sqlStmt)

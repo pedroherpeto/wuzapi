@@ -9,6 +9,8 @@ import (
 	"path/filepath"
 	"regexp"
 	"strconv"
+    "github.com/rs/zerolog/log"
+
 )
 
 func Find(slice []string, val string) bool {

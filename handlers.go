@@ -10,6 +10,7 @@ import (
 	"image"
 	"image/jpeg"
 	"net/http"
+	"net/url"
 	"os"
 	"path/filepath"
 	"strconv"
@@ -19,6 +20,7 @@ import (
 	"github.com/gorilla/mux"
 	"github.com/nfnt/resize"
 	"github.com/patrickmn/go-cache"
+	"github.com/rs/zerolog/log"
 	"github.com/vincent-petithory/dataurl"
 	"go.mau.fi/whatsmeow"
 	waProto "go.mau.fi/whatsmeow/binary/proto"
@@ -2099,6 +2101,62 @@ func (s *server) GetUser() http.HandlerFunc {
 	}
 }
 
+func (s *server) SendPresence() http.HandlerFunc {
+
+	type PresenceRequest struct {
+		Type string `json:"type" form:"type"`
+	}
+
+	return func(w http.ResponseWriter, r *http.Request) {
+
+		txtid := r.Context().Value("userinfo").(Values).Get("Id")
+		userid, _ := strconv.Atoi(txtid)
+
+		if clientPointer[userid] == nil {
+			s.Respond(w, r, http.StatusInternalServerError, errors.New("No session"))
+			return
+		}
+
+		decoder := json.NewDecoder(r.Body)
+		var pre PresenceRequest
+		err := decoder.Decode(&pre)
+		if err != nil {
+			s.Respond(w, r, http.StatusBadRequest, errors.New("Could not decode Payload"))
+			return
+		}
+
+		var presence types.Presence
+
+		switch pre.Type {
+		case "available":
+			presence = types.PresenceAvailable
+		case "unavailable":
+			presence = types.PresenceUnavailable
+		default:
+			s.Respond(w, r, http.StatusBadRequest, errors.New("Invalid presence type. Allowed values: 'available', 'unavailable'"))
+			return
+		}
+
+		log.Info().Str("presence", pre.Type).Msg("Your global presence status")
+
+		err = clientPointer[userid].SendPresence(presence)
+		if err != nil {
+			s.Respond(w, r, http.StatusInternalServerError, errors.New("Failure sending presence to Whatsapp servers"))
+			return
+		}
+
+		response := map[string]interface{}{"Details": "Presence set successfuly"}
+		responseJson, err := json.Marshal(response)
+		if err != nil {
+			s.Respond(w, r, http.StatusInternalServerError, err)
+		} else {
+			s.Respond(w, r, http.StatusOK, string(responseJson))
+		}
+		return
+
+	}
+}
+
 // Gets avatar info for user
 func (s *server) GetAvatar() http.HandlerFunc {
 
@@ -3245,6 +3303,48 @@ func (s *server) SetGroupName() http.HandlerFunc {
 	}
 }
 
+// List newsletters
+func (s *server) ListNewsletter() http.HandlerFunc {
+
+	type NewsletterCollection struct {
+		Newsletter []types.NewsletterMetadata
+	}
+
+	return func(w http.ResponseWriter, r *http.Request) {
+
+		txtid := r.Context().Value("userinfo").(Values).Get("Id")
+		userid, _ := strconv.Atoi(txtid)
+
+		if clientPointer[userid] == nil {
+			s.Respond(w, r, http.StatusInternalServerError, errors.New("No session"))
+			return
+		}
+
+		resp, err := clientPointer[userid].GetSubscribedNewsletters()
+
+		if err != nil {
+			msg := fmt.Sprintf("Failed to get newsletter list: %v", err)
+			log.Error().Msg(msg)
+			s.Respond(w, r, http.StatusInternalServerError, msg)
+			return
+		}
+
+		gc := new(NewsletterCollection)
+		for _, info := range resp {
+			gc.Newsletter = append(gc.Newsletter, *info)
+		}
+
+		responseJson, err := json.Marshal(gc)
+		if err != nil {
+			s.Respond(w, r, http.StatusInternalServerError, err)
+		} else {
+			s.Respond(w, r, http.StatusOK, string(responseJson))
+		}
+
+		return
+	}
+}
+
 // Admin List users
 func (s *server) ListUsers() http.HandlerFunc {
 	type usersStruct struct {
@@ -3455,4 +3555,84 @@ func contains(slice []string, item string) bool {
 		}
 	}
 	return false
+}
+
+func (s *server) SetProxy() http.HandlerFunc {
+	type proxyStruct struct {
+		ProxyURL string `json:"proxy_url"` // Format: "socks5://user:pass@host:port" or "http://host:port"
+		Enable   bool   `json:"enable"`    // Whether to enable or disable proxy
+	}
+
+	return func(w http.ResponseWriter, r *http.Request) {
+		txtid := r.Context().Value("userinfo").(Values).Get("Id")
+		userid, _ := strconv.Atoi(txtid)
+
+		// Check if client exists and is connected
+		if clientPointer[userid] != nil && clientPointer[userid].IsConnected() {
+			s.Respond(w, r, http.StatusBadRequest, errors.New("cannot set proxy while connected. Please disconnect first"))
+			return
+		}
+
+		decoder := json.NewDecoder(r.Body)
+		var t proxyStruct
+		err := decoder.Decode(&t)
+		if err != nil {
+			s.Respond(w, r, http.StatusBadRequest, errors.New("could not decode payload"))
+			return
+		}
+
+		// If enable is false, remove proxy configuration
+		if !t.Enable {
+			_, err = s.db.Exec("UPDATE users SET proxy_url = NULL WHERE id = $1", userid)
+			if err != nil {
+				s.Respond(w, r, http.StatusInternalServerError, errors.New("failed to remove proxy configuration"))
+				return
+			}
+
+			response := map[string]interface{}{"Details": "Proxy disabled successfully"}
+			responseJson, err := json.Marshal(response)
+			if err != nil {
+				s.Respond(w, r, http.StatusInternalServerError, err)
+			} else {
+				s.Respond(w, r, http.StatusOK, string(responseJson))
+			}
+			return
+		}
+
+		// Validate proxy URL
+		if t.ProxyURL == "" {
+			s.Respond(w, r, http.StatusBadRequest, errors.New("missing proxy_url in payload"))
+			return
+		}
+
+		proxyURL, err := url.Parse(t.ProxyURL)
+		if err != nil {
+			s.Respond(w, r, http.StatusBadRequest, errors.New("invalid proxy URL format"))
+			return
+		}
+
+		// Only allow http and socks5 proxies
+		if proxyURL.Scheme != "http" && proxyURL.Scheme != "socks5" {
+			s.Respond(w, r, http.StatusBadRequest, errors.New("only HTTP and SOCKS5 proxies are supported"))
+			return
+		}
+
+		// Store proxy configuration in database
+		_, err = s.db.Exec("UPDATE users SET proxy_url = $1 WHERE id = $2", t.ProxyURL, userid)
+		if err != nil {
+			s.Respond(w, r, http.StatusInternalServerError, errors.New("failed to save proxy configuration"))
+			return
+		}
+
+		response := map[string]interface{}{
+			"Details":  "Proxy configured successfully",
+			"ProxyURL": t.ProxyURL,
+		}
+		responseJson, err := json.Marshal(response)
+		if err != nil {
+			s.Respond(w, r, http.StatusInternalServerError, err)
+		} else {
+			s.Respond(w, r, http.StatusOK, string(responseJson))
+		}
+	}
 }

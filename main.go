@@ -4,25 +4,25 @@ import (
 	"context"
 	"flag"
 	"fmt"
+	"io/ioutil"
 	"net/http"
 	"os"
 	"os/signal"
 	"path/filepath"
+	"strings"
 	"syscall"
 	"time"
 
 	"go.mau.fi/whatsmeow/store/sqlstore"
 	waLog "go.mau.fi/whatsmeow/util/log"
 
-	"github.com/golang-migrate/migrate/v4"
-	"github.com/golang-migrate/migrate/v4/database/postgres"
-	_ "github.com/golang-migrate/migrate/v4/source/file"
 	"github.com/gorilla/mux"
 	"github.com/jmoiron/sqlx"
 	"github.com/joho/godotenv"
-	_ "github.com/lib/pq" // Driver para PostgreSQL
+	_ "github.com/lib/pq"
 	"github.com/patrickmn/go-cache"
 	"github.com/rs/zerolog"
+	"github.com/rs/zerolog/log"
 )
 
 type server struct {
@@ -40,51 +40,74 @@ var (
 	sslcert     = flag.String("sslcertificate", "", "SSL Certificate File")
 	sslprivkey  = flag.String("sslprivatekey", "", "SSL Certificate Private Key File")
 	adminToken  = flag.String("admintoken", "", "Security Token to authorize admin actions (list/create/remove users)")
-	container   *sqlstore.Container
 
+	container     *sqlstore.Container
 	killchannel   = make(map[int](chan bool))
 	userinfocache = cache.New(5*time.Minute, 10*time.Minute)
-	log           zerolog.Logger
 )
 
 func init() {
-	// Carrega variáveis de ambiente do arquivo .env
 	err := godotenv.Load()
 	if err != nil {
-		log.Fatal().Err(err).Msg("Erro ao carregar o arquivo .env")
+		log.Warn().Err(err).Msg("Não foi possível carregar o arquivo .env (pode ser que não exista).")
 	}
 
 	flag.Parse()
 
+	tz := os.Getenv("TZ")
+	if tz != "" {
+		loc, err := time.LoadLocation(tz)
+		if err != nil {
+			log.Warn().Err(err).Msgf("Não foi possível definir TZ=%q, usando UTC", tz)
+		} else {
+			time.Local = loc
+			log.Info().Str("TZ", tz).Msg("Timezone definido pelo ambiente")
+		}
+	}
+
 	if *logType == "json" {
-		log = zerolog.New(os.Stdout).With().Timestamp().Str("role", filepath.Base(os.Args[0])).Logger()
+		log.Logger = zerolog.New(os.Stdout).
+			With().
+			Timestamp().
+			Str("role", filepath.Base(os.Args[0])).
+			Logger()
 	} else {
-		output := zerolog.ConsoleWriter{Out: os.Stdout, TimeFormat: time.RFC3339, NoColor: !*colorOutput}
-		log = zerolog.New(output).With().Timestamp().Str("role", filepath.Base(os.Args[0])).Logger()
+		output := zerolog.ConsoleWriter{
+			Out:        os.Stdout,
+			TimeFormat: "2006-01-02 15:04:05 -07:00",
+			NoColor:    !*colorOutput,
+		}
+
+		output.FormatLevel = func(i interface{}) string {
+			if i == nil {
+				return ""
+			}
+			lvl := strings.ToUpper(i.(string))
+			switch lvl {
+			case "DEBUG":
+				return "\x1b[34m" + lvl + "\x1b[0m"
+			case "INFO":
+				return "\x1b[32m" + lvl + "\x1b[0m"
+			case "WARN":
+				return "\x1b[33m" + lvl + "\x1b[0m"
+			case "ERROR", "FATAL", "PANIC":
+				return "\x1b[31m" + lvl + "\x1b[0m"
+			default:
+				return lvl
+			}
+		}
+
+		log.Logger = zerolog.New(output).
+			With().
+			Timestamp().
+			Str("role", filepath.Base(os.Args[0])).
+			Logger()
 	}
 
 	if *adminToken == "" {
 		if v := os.Getenv("WUZAPI_ADMIN_TOKEN"); v != "" {
 			*adminToken = v
 		}
-	}
-}
-
-func runMigrations(db *sqlx.DB) {
-	driver, err := postgres.WithInstance(db.DB, &postgres.Config{})
-	if err != nil {
-		log.Fatal().Err(err).Msg("Erro ao configurar driver de migração")
-	}
-
-	m, err := migrate.NewWithDatabaseInstance(
-		"file://migrations",
-		"postgres", driver)
-	if err != nil {
-		log.Fatal().Err(err).Msg("Erro ao configurar migração")
-	}
-
-	if err := m.Up(); err != nil && err != migrate.ErrNoChange {
-		log.Fatal().Err(err).Msg("Erro ao aplicar migrações")
 	}
 }
 
@@ -95,43 +118,50 @@ func main() {
 	}
 	exPath := filepath.Dir(ex)
 
-	// Obtendo informações do banco de dados a partir das variáveis de ambiente
 	dbUser := os.Getenv("DB_USER")
 	dbPassword := os.Getenv("DB_PASSWORD")
 	dbName := os.Getenv("DB_NAME")
 	dbHost := os.Getenv("DB_HOST")
 	dbPort := os.Getenv("DB_PORT")
 
-	// String de conexão para PostgreSQL
-	dsn := fmt.Sprintf("user=%s password=%s dbname=%s host=%s port=%s sslmode=disable", dbUser, dbPassword, dbName, dbHost, dbPort)
+	dsn := fmt.Sprintf(
+		"user=%s password=%s dbname=%s host=%s port=%s sslmode=disable",
+		dbUser, dbPassword, dbName, dbHost, dbPort,
+	)
 
-	// Conectando ao banco de dados PostgreSQL usando SQLX
-	db, err := sqlx.Open("postgres", dsn)
+	var db *sqlx.DB
+	const maxAttempts = 10
+	for i := 1; i <= maxAttempts; i++ {
+		db, err = sqlx.Open("postgres", dsn)
+		if err == nil {
+			errPing := db.Ping()
+			if errPing == nil {
+				log.Info().Msgf("[DB] Conexão PostgreSQL estabelecida na tentativa %d", i)
+				break
+			}
+			err = errPing
+		}
+		log.Warn().Msgf("[DB] Falha ao conectar (%d/%d): %v", i, maxAttempts, err)
+		time.Sleep(2 * time.Second)
+	}
 	if err != nil {
-		log.Fatal().Err(err).Msg("Não foi possível conectar ao banco de dados PostgreSQL")
+		log.Fatal().Err(err).Msgf("[DB] Não foi possível conectar ao PostgreSQL após %d tentativas", maxAttempts)
 		os.Exit(1)
 	}
-	defer db.Close()
 
-	// Verificando se a conexão foi estabelecida corretamente
-	err = db.Ping()
-	if err != nil {
-		log.Fatal().Err(err).Msg("Não foi possível verificar a conexão com o banco de dados")
+	if err := runMigrations(db, exPath); err != nil {
+		log.Fatal().Err(err).Msg("Falha ao executar migrações")
 		os.Exit(1)
 	}
 
-	// Executa as migrações
-	runMigrations(db)
-
-	// Inicializando o repositório com o banco de dados PostgreSQL
+	var dbLog waLog.Logger
 	if *waDebug != "" {
-		dbLog := waLog.Stdout("Database", *waDebug, *colorOutput)
-		container, err = sqlstore.New("postgres", dsn, dbLog)
-	} else {
-		container, err = sqlstore.New("postgres", dsn, nil)
+		dbLog = waLog.Stdout("Database", *waDebug, *colorOutput)
 	}
+	container, err = sqlstore.New("postgres", dsn, dbLog)
 	if err != nil {
-		panic(err)
+		log.Fatal().Err(err).Msg("Falha ao criar container sqlstore")
+		os.Exit(1)
 	}
 
 	s := &server{
@@ -161,27 +191,72 @@ func main() {
 	go func() {
 		if *sslcert != "" {
 			if err := srv.ListenAndServeTLS(*sslcert, *sslprivkey); err != nil && err != http.ErrServerClosed {
-				log.Fatal().Err(err).Msg("Falha ao iniciar o servidor com TLS")
+				log.Fatal().Err(err).Msg("Falha ao iniciar o servidor HTTPS")
 			}
 		} else {
 			if err := srv.ListenAndServe(); err != nil && err != http.ErrServerClosed {
-				log.Fatal().Err(err).Msg("Falha ao iniciar o servidor")
+				log.Fatal().Err(err).Msg("Falha ao iniciar o servidor HTTP")
 			}
 		}
 	}()
-	log.Info().Str("address", *address).Str("port", *port).Msg("Servidor iniciado")
+	log.Info().Str("address", *address).Str("port", *port).Msg("Servidor iniciado. Aguardando conexões...")
 
 	<-done
-	log.Info().Msg("Servidor parando")
+	log.Warn().Msg("Servidor parando...")
 
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
-	defer func() {
-		cancel()
-	}()
-
+	defer cancel()
 	if err := srv.Shutdown(ctx); err != nil {
-		log.Error().Str("error", fmt.Sprintf("%+v", err)).Msg("Falha ao parar o servidor")
+		log.Error().Err(err).Msg("Falha ao parar o servidor")
 		os.Exit(1)
 	}
 	log.Info().Msg("Servidor saiu corretamente")
+}
+
+func runMigrations(db *sqlx.DB, exPath string) error {
+	log.Info().Msg("Checando se já existe algum usuário...")
+
+	var userCount int
+	if err := db.Get(&userCount, "SELECT COUNT(*) FROM users;"); err == nil {
+		if userCount > 0 {
+			log.Info().Msgf("Usuário(s) encontrado(s): %d. Pulando migrações...", userCount)
+			return nil
+		}
+		log.Warn().Msg("Nenhum usuário encontrado. Rodando migração e inserindo usuário padrão.")
+		return applyMigrationsAndCreateUser(db, exPath)
+	} else {
+		log.Warn().Err(err).Msg("Erro consultando usuários (talvez a tabela nem exista). Rodando migração...")
+		return applyMigrationsAndCreateUser(db, exPath)
+	}
+}
+
+func applyMigrationsAndCreateUser(db *sqlx.DB, exPath string) error {
+	log.Info().Msg("Executando migrações...")
+
+	migFile := filepath.Join(exPath, "migrations", "0001_create_users_table.up.sql")
+	sqlBytes, err := ioutil.ReadFile(migFile)
+	if err != nil {
+		return fmt.Errorf("falha ao ler arquivo de migração (%s): %w", migFile, err)
+	}
+	if _, err = db.Exec(string(sqlBytes)); err != nil {
+		return fmt.Errorf("falha ao executar migração: %w", err)
+	}
+	log.Info().Msg("Migração executada com sucesso.")
+
+	// Usar o token administrativo definido na variável de ambiente
+	userToken := *adminToken
+	if userToken == "" {
+		userToken = "1234ABCD" // Valor padrão caso não esteja definido
+		log.Warn().Msg("WUZAPI_ADMIN_TOKEN não definido, usando token padrão")
+	}
+
+	if _, err = db.Exec("INSERT INTO users (name, token) VALUES ($1, $2)", "admin", userToken); err != nil {
+		if strings.Contains(err.Error(), "duplicate key") {
+			log.Warn().Msg("Usuário padrão já existe. Ignorando.")
+			return nil
+		}
+		return fmt.Errorf("erro ao inserir usuário padrão: %w", err)
+	}
+	log.Info().Msgf("Usuário padrão (admin/%s) inserido com sucesso.", userToken)
+	return nil
 }
