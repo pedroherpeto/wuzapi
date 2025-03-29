@@ -21,6 +21,10 @@ require (
 require github.com/lib/pq v1.10.9
 
 require (
+	github.com/go-audio/audio v1.0.0 // indirect
+	github.com/go-audio/riff v1.0.0 // indirect
+	github.com/go-audio/wav v1.1.0 // indirect
+	github.com/golang-migrate/migrate/v4 v4.18.1 // indirect
 	github.com/google/go-cmp v0.6.0 // indirect
 	golang.org/x/time v0.5.0 // indirect
 )

@@ -79,7 +79,6 @@ func (s *server) routes() {
 	s.router.Handle("/webhook", c.Then(s.GetWebhook())).Methods("GET")
 	s.router.Handle("/webhook", c.Then(s.DeleteWebhook())).Methods("DELETE")     // Nova rota
 	s.router.Handle("/webhook/update", c.Then(s.UpdateWebhook())).Methods("PUT") // Nova rota
-
 	s.router.Handle("/session/proxy", c.Then(s.SetProxy())).Methods("POST")
 
 	s.router.Handle("/chat/send/text", c.Then(s.SendMessage())).Methods("POST")
@@ -92,9 +91,11 @@ func (s *server) routes() {
 	s.router.Handle("/chat/send/location", c.Then(s.SendLocation())).Methods("POST")
 	s.router.Handle("/chat/send/contact", c.Then(s.SendContact())).Methods("POST")
 	s.router.Handle("/chat/react", c.Then(s.React())).Methods("POST")
+	s.router.Handle("/user/presence", c.Then(s.SendPresence())).Methods("POST")
+	s.router.Handle("/chat/edit", c.Then(s.Edit())).Methods("POST")
+	s.router.Handle("/chat/revoke", c.Then(s.Revoke())).Methods("POST")
 	s.router.Handle("/chat/send/buttons", c.Then(s.SendButtons())).Methods("POST")
 	s.router.Handle("/chat/send/list", c.Then(s.SendList())).Methods("POST")
-	s.router.Handle("/user/presence", c.Then(s.SendPresence())).Methods("POST")
 
 	s.router.Handle("/user/info", c.Then(s.GetUser())).Methods("POST")
 	s.router.Handle("/user/check", c.Then(s.CheckUser())).Methods("POST")
@@ -113,9 +114,7 @@ func (s *server) routes() {
 	s.router.Handle("/group/invitelink", c.Then(s.GetGroupInviteLink())).Methods("GET")
 	s.router.Handle("/group/photo", c.Then(s.SetGroupPhoto())).Methods("POST")
 	s.router.Handle("/group/name", c.Then(s.SetGroupName())).Methods("POST")
-
 	s.router.Handle("/newsletter/list", c.Then(s.ListNewsletter())).Methods("GET")
 	// s.router.Handle("/newsletters/info", c.Then(s.GetNewsletterInfo())).Methods("GET")
-
 	s.router.PathPrefix("/").Handler(http.FileServer(http.Dir(exPath + "/static/")))
 }

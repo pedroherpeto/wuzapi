@@ -169,6 +169,9 @@ func main() {
 		db:     db,
 		exPath: exPath,
 	}
+
+	s.router.PathPrefix("/files/").Handler(http.StripPrefix("/files/", http.FileServer(http.Dir("./files"))))
+
 	s.routes()
 
 	s.connectOnStartup()

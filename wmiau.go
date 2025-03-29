@@ -16,6 +16,8 @@ import (
 	"sync/atomic"
 	"time"
 
+	"regexp"
+
 	"github.com/go-resty/resty/v2"
 	"github.com/jmoiron/sqlx" // Importação do sqlx
 	"github.com/mdp/qrterminal/v3"
@@ -279,6 +281,24 @@ func (s *server) startClient(userID int, textjid string, token string, subscript
 			//log.Info().Str("jid",textjid).Msg("Loop the loop")
 		}
 	}
+}
+
+// Função para remover conteúdo Base64 de um mapa
+
+func filterBase64Data(input map[string]interface{}) map[string]interface{} {
+	base64Pattern := `^data:[\w/\-]+;base64,`
+	filtered := make(map[string]interface{})
+
+	for k, v := range input {
+		strVal, ok := v.(string)
+		// Remover se a chave for "base64" ou o valor corresponder ao padrão Base64
+		if k == "base64" || (ok && regexp.MustCompile(base64Pattern).MatchString(strVal)) {
+			continue // Ignorar a propriedade Base64 completa
+		}
+		filtered[k] = v
+	}
+
+	return filtered
 }
 
 func fileToBase64(filepath string) (string, string, error) {
@@ -650,7 +670,9 @@ func (mycli *MyClient) myEventHandler(rawEvt interface{}) {
 
 		if webhookurl != "" {
 			log.Info().Str("url", webhookurl).Msg("Calling webhook")
-			jsonData, err := json.Marshal(postmap)
+			filteredPostmap := filterBase64Data(postmap)
+			jsonData, err := json.Marshal(filteredPostmap)
+			// jsonData, err := json.Marshal(postmap)
 			if err != nil {
 				log.Error().Err(err).Msg("Failed to marshal postmap to JSON")
 			} else {
@@ -668,7 +690,8 @@ func (mycli *MyClient) myEventHandler(rawEvt interface{}) {
 					// Create a channel to capture error from the goroutine
 					errChan := make(chan error, 1)
 					go func() {
-						err := callHookFile(webhookurl, data, mycli.userID, path)
+						// err := callHookFile(webhookurl, data, mycli.userID, path)
+						err := callHookFile(strconv.Itoa(mycli.userID), data, filepath.Base(path), webhookurl)
 						errChan <- err
 					}()
 
