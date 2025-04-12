@@ -21,6 +21,7 @@ import (
 	"github.com/joho/godotenv"
 	_ "github.com/lib/pq"
 	"github.com/patrickmn/go-cache"
+	"github.com/rs/cors"
 	"github.com/rs/zerolog"
 	"github.com/rs/zerolog/log"
 )
@@ -170,6 +171,14 @@ func main() {
 		exPath: exPath,
 	}
 
+	// Configuração do CORS
+	corsMiddleware := cors.New(cors.Options{
+		AllowedOrigins:   []string{"*"},
+		AllowedMethods:   []string{"GET", "POST", "PUT", "DELETE", "OPTIONS"},
+		AllowedHeaders:   []string{"Content-Type", "Authorization", "token", "instance-token"},
+		AllowCredentials: true,
+	})
+
 	s.router.PathPrefix("/files/").Handler(http.StripPrefix("/files/", http.FileServer(http.Dir("./files"))))
 
 	s.routes()
@@ -178,7 +187,7 @@ func main() {
 
 	srv := &http.Server{
 		Addr:              *address + ":" + *port,
-		Handler:           s.router,
+		Handler:           corsMiddleware.Handler(s.router), // Aplicando o middleware CORS
 		ReadHeaderTimeout: 20 * time.Second,
 		ReadTimeout:       60 * time.Second,
 		WriteTimeout:      120 * time.Second,

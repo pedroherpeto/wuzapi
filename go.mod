@@ -26,6 +26,7 @@ require (
 	github.com/go-audio/wav v1.1.0 // indirect
 	github.com/golang-migrate/migrate/v4 v4.18.1 // indirect
 	github.com/google/go-cmp v0.6.0 // indirect
+	github.com/rs/cors v1.11.1 // indirect
 	golang.org/x/time v0.5.0 // indirect
 )
 

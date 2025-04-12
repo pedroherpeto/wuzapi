@@ -9,8 +9,8 @@ import (
 	"path/filepath"
 	"regexp"
 	"strconv"
-    "github.com/rs/zerolog/log"
 
+	"github.com/rs/zerolog/log"
 )
 
 func Find(slice []string, val string) bool {
@@ -82,14 +82,14 @@ func callHookFile(txtid string, data map[string]string, fileName, webhookURL str
 	// Convert final payload to JSON
 	jsonPayload, err := json.Marshal(finalPayload)
 	if err != nil {
-		log.Println("Error marshaling JSON:", err)
+		log.Error().Err(err).Msg("Error marshaling JSON")
 		return err
 	}
 
 	// Send the webhook
 	req, err := http.NewRequest("POST", webhookURL, bytes.NewBuffer(jsonPayload))
 	if err != nil {
-		log.Println("Error creating request:", err)
+		log.Error().Err(err).Msg("Error creating request")
 		return err
 	}
 	req.Header.Set("Content-Type", "application/json")
@@ -97,18 +97,18 @@ func callHookFile(txtid string, data map[string]string, fileName, webhookURL str
 	client := &http.Client{}
 	resp, err := client.Do(req)
 	if err != nil {
-		log.Println("Error sending webhook:", err)
+		log.Error().Err(err).Msg("Error sending webhook")
 		return err
 	}
 	defer resp.Body.Close()
 
 	if resp.StatusCode != http.StatusOK {
-		log.Println("Webhook responded with non-200 status:", resp.Status)
+		log.Error().Str("status", resp.Status).Msg("Webhook responded with non-200 status")
 		return fmt.Errorf("webhook failed with status %s", resp.Status)
 	}
 
 	// Log response
-	log.Printf("POST request completed with status %d", resp.StatusCode)
+	log.Info().Int("status", resp.StatusCode).Msg("POST request completed")
 
 	return nil
 }

@@ -47,6 +47,7 @@ func (s *server) routes() {
 	adminRoutes.Use(s.authadmin)
 	adminRoutes.Handle("/users", s.ListUsers()).Methods("GET")
 	adminRoutes.Handle("/users", s.AddUser()).Methods("POST")
+	adminRoutes.Handle("/users/{id}", s.EditUser()).Methods("PUT")
 	adminRoutes.Handle("/users/{id}", s.DeleteUser()).Methods("DELETE")
 
 	c := alice.New()
@@ -116,5 +117,10 @@ func (s *server) routes() {
 	s.router.Handle("/group/name", c.Then(s.SetGroupName())).Methods("POST")
 	s.router.Handle("/newsletter/list", c.Then(s.ListNewsletter())).Methods("GET")
 	// s.router.Handle("/newsletters/info", c.Then(s.GetNewsletterInfo())).Methods("GET")
+
+	// Rota pública para validação de token
+	s.router.HandleFunc("/api/validate-token", s.ValidateToken()).Methods("GET")
+
+	// Rota para arquivos estáticos deve ser a última
 	s.router.PathPrefix("/").Handler(http.FileServer(http.Dir(exPath + "/static/")))
 }
