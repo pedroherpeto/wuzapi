@@ -1,4 +1,4 @@
-# WUZAPI
+# WuzAPI
 
 <img src="static/favicon.ico" width="30"> WuzAPI is an implementation 
 of [@tulir/whatsmeow](https://github.com/tulir/whatsmeow) library as a 

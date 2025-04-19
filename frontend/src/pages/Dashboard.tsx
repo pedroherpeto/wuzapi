@@ -63,7 +63,7 @@ const Dashboard: React.FC = () => {
   if (loading) {
     return (
       <Box display="flex" justifyContent="center" alignItems="center" minHeight="200px">
-        <CircularProgress />
+        <CircularProgress sx={{ color: '#00a884' }} />
       </Box>
     );
   }
@@ -73,33 +73,60 @@ const Dashboard: React.FC = () => {
   const loggedInstances = instances.filter(instance => instance.loggedIn).length;
 
   return (
-    <Box>
-      <Typography variant="h4" gutterBottom>
+    <Box sx={{ bgcolor: '#111b21', minHeight: 'calc(100vh - 64px)', p: 3 }}>
+      <Typography variant="h4" gutterBottom sx={{ color: '#e9edef', fontWeight: 400, mb: 3 }}>
         Dashboard
       </Typography>
       <Grid container spacing={3}>
         <Grid item xs={12} md={6} lg={4}>
-          <Paper sx={{ p: 2 }}>
-            <Typography variant="h6" gutterBottom>
+          <Paper 
+            sx={{ 
+              p: 3, 
+              bgcolor: '#202c33',
+              borderRadius: 2,
+              color: '#e9edef',
+            }}
+          >
+            <Typography variant="h6" gutterBottom sx={{ color: '#8696a0', fontSize: '1rem' }}>
               Total de Instâncias
             </Typography>
-            <Typography variant="h3">{totalInstances}</Typography>
+            <Typography variant="h3" sx={{ color: '#00a884', fontWeight: 400 }}>
+              {totalInstances}
+            </Typography>
           </Paper>
         </Grid>
         <Grid item xs={12} md={6} lg={4}>
-          <Paper sx={{ p: 2 }}>
-            <Typography variant="h6" gutterBottom>
+          <Paper 
+            sx={{ 
+              p: 3, 
+              bgcolor: '#202c33',
+              borderRadius: 2,
+              color: '#e9edef',
+            }}
+          >
+            <Typography variant="h6" gutterBottom sx={{ color: '#8696a0', fontSize: '1rem' }}>
               Instâncias Ativas
             </Typography>
-            <Typography variant="h3">{activeInstances}</Typography>
+            <Typography variant="h3" sx={{ color: '#00a884', fontWeight: 400 }}>
+              {activeInstances}
+            </Typography>
           </Paper>
         </Grid>
         <Grid item xs={12} md={6} lg={4}>
-          <Paper sx={{ p: 2 }}>
-            <Typography variant="h6" gutterBottom>
+          <Paper 
+            sx={{ 
+              p: 3, 
+              bgcolor: '#202c33',
+              borderRadius: 2,
+              color: '#e9edef',
+            }}
+          >
+            <Typography variant="h6" gutterBottom sx={{ color: '#8696a0', fontSize: '1rem' }}>
               Instâncias Logadas
             </Typography>
-            <Typography variant="h3">{loggedInstances}</Typography>
+            <Typography variant="h3" sx={{ color: '#00a884', fontWeight: 400 }}>
+              {loggedInstances}
+            </Typography>
           </Paper>
         </Grid>
       </Grid>
