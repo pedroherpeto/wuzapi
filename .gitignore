@@ -2,6 +2,7 @@ dbdata/
 files/
 wuzapi
 frontend/node_modules
+frontend/package-lock.json
 .env
 .env.example
 .tool-versions
