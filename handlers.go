@@ -10,6 +10,7 @@ import (
 	"image"
 	"image/jpeg"
 	"net/http"
+	"net/url"
 	"os"
 	"path/filepath"
 	"strconv"
@@ -19,6 +20,7 @@ import (
 	"github.com/gorilla/mux"
 	"github.com/nfnt/resize"
 	"github.com/patrickmn/go-cache"
+	"github.com/rs/zerolog/log"
 	"github.com/vincent-petithory/dataurl"
 	"go.mau.fi/whatsmeow"
 	waProto "go.mau.fi/whatsmeow/binary/proto"
@@ -38,9 +40,16 @@ var messageTypes = []string{"Message", "ReadReceipt", "Presence", "HistorySync",
 
 func (s *server) authadmin(next http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		token := r.Header.Get("Authorization")
+		authHeader := r.Header.Get("Authorization")
+		if authHeader == "" {
+			s.Respond(w, r, http.StatusUnauthorized, errors.New("Token não fornecido"))
+			return
+		}
+
+		// Remove o prefixo "Bearer " se existir
+		token := strings.TrimPrefix(authHeader, "Bearer ")
 		if token != *adminToken {
-			s.Respond(w, r, http.StatusUnauthorized, errors.New("Unauthorized"))
+			s.Respond(w, r, http.StatusUnauthorized, errors.New("Token inválido"))
 			return
 		}
 		next.ServeHTTP(w, r)
@@ -2099,6 +2108,62 @@ func (s *server) GetUser() http.HandlerFunc {
 	}
 }
 
+func (s *server) SendPresence() http.HandlerFunc {
+
+	type PresenceRequest struct {
+		Type string `json:"type" form:"type"`
+	}
+
+	return func(w http.ResponseWriter, r *http.Request) {
+
+		txtid := r.Context().Value("userinfo").(Values).Get("Id")
+		userid, _ := strconv.Atoi(txtid)
+
+		if clientPointer[userid] == nil {
+			s.Respond(w, r, http.StatusInternalServerError, errors.New("No session"))
+			return
+		}
+
+		decoder := json.NewDecoder(r.Body)
+		var pre PresenceRequest
+		err := decoder.Decode(&pre)
+		if err != nil {
+			s.Respond(w, r, http.StatusBadRequest, errors.New("Could not decode Payload"))
+			return
+		}
+
+		var presence types.Presence
+
+		switch pre.Type {
+		case "available":
+			presence = types.PresenceAvailable
+		case "unavailable":
+			presence = types.PresenceUnavailable
+		default:
+			s.Respond(w, r, http.StatusBadRequest, errors.New("Invalid presence type. Allowed values: 'available', 'unavailable'"))
+			return
+		}
+
+		log.Info().Str("presence", pre.Type).Msg("Your global presence status")
+
+		err = clientPointer[userid].SendPresence(presence)
+		if err != nil {
+			s.Respond(w, r, http.StatusInternalServerError, errors.New("Failure sending presence to Whatsapp servers"))
+			return
+		}
+
+		response := map[string]interface{}{"Details": "Presence set successfuly"}
+		responseJson, err := json.Marshal(response)
+		if err != nil {
+			s.Respond(w, r, http.StatusInternalServerError, err)
+		} else {
+			s.Respond(w, r, http.StatusOK, string(responseJson))
+		}
+		return
+
+	}
+}
+
 // Gets avatar info for user
 func (s *server) GetAvatar() http.HandlerFunc {
 
@@ -3245,62 +3310,137 @@ func (s *server) SetGroupName() http.HandlerFunc {
 	}
 }
 
+// List newsletters
+func (s *server) ListNewsletter() http.HandlerFunc {
+
+	type NewsletterCollection struct {
+		Newsletter []types.NewsletterMetadata
+	}
+
+	return func(w http.ResponseWriter, r *http.Request) {
+
+		txtid := r.Context().Value("userinfo").(Values).Get("Id")
+		userid, _ := strconv.Atoi(txtid)
+
+		if clientPointer[userid] == nil {
+			s.Respond(w, r, http.StatusInternalServerError, errors.New("No session"))
+			return
+		}
+
+		resp, err := clientPointer[userid].GetSubscribedNewsletters()
+
+		if err != nil {
+			msg := fmt.Sprintf("Failed to get newsletter list: %v", err)
+			log.Error().Msg(msg)
+			s.Respond(w, r, http.StatusInternalServerError, msg)
+			return
+		}
+
+		gc := new(NewsletterCollection)
+		for _, info := range resp {
+			gc.Newsletter = append(gc.Newsletter, *info)
+		}
+
+		responseJson, err := json.Marshal(gc)
+		if err != nil {
+			s.Respond(w, r, http.StatusInternalServerError, err)
+		} else {
+			s.Respond(w, r, http.StatusOK, string(responseJson))
+		}
+
+		return
+	}
+}
+
 // Admin List users
 func (s *server) ListUsers() http.HandlerFunc {
 	type usersStruct struct {
-		Id         int          `db:"id"`
-		Name       string       `db:"name"`
-		Token      string       `db:"token"`
-		Webhook    string       `db:"webhook"`
-		Jid        string       `db:"jid"`
-		Qrcode     string       `db:"qrcode"`
-		Connected  sql.NullBool `db:"connected"`
-		Expiration int          `db:"expiration"`
-		Events     string       `db:"events"`
+		Id         int           `db:"id"`
+		Name       string        `db:"name"`
+		Token      string        `db:"token"`
+		Webhook    string        `db:"webhook"`
+		Jid        string        `db:"jid"`
+		Qrcode     string        `db:"qrcode"`
+		Connected  sql.NullBool  `db:"connected"`
+		Expiration sql.NullInt64 `db:"expiration"`
+		Events     string        `db:"events"`
 	}
+
+	type instanceResponse struct {
+		Id         int    `json:"id"`
+		Name       string `json:"name"`
+		Token      string `json:"token"`
+		Connected  bool   `json:"connected"`
+		QRCode     string `json:"qrcode,omitempty"`
+		Webhook    string `json:"webhook"`
+		Jid        string `json:"jid"`
+		Events     string `json:"events"`
+		Expiration int64  `json:"expiration"`
+	}
+
 	return func(w http.ResponseWriter, r *http.Request) {
-		// Query the database to get the list of users
-		rows, err := s.db.Queryx("SELECT id, name, token, webhook, jid, qrcode, connected, expiration, events FROM users")
+		log.Info().Msg("Iniciando busca de usuários")
+
+		// Verifica se o banco de dados está disponível
+		if s.db == nil {
+			log.Error().Msg("Banco de dados não inicializado")
+			w.Header().Set("Content-Type", "application/json")
+			w.WriteHeader(http.StatusInternalServerError)
+			json.NewEncoder(w).Encode(map[string]string{
+				"error": "Banco de dados não disponível",
+			})
+			return
+		}
+
+		var users []usersStruct
+		err := s.db.Select(&users, "SELECT id, name, token, webhook, jid, qrcode, connected, expiration, events FROM users ORDER BY id")
 		if err != nil {
-			s.Respond(w, r, http.StatusInternalServerError, errors.New("Problem accessing DB"))
+			log.Error().Err(err).Msg("Erro ao buscar usuários no banco de dados")
+			w.Header().Set("Content-Type", "application/json")
+			w.WriteHeader(http.StatusInternalServerError)
+			json.NewEncoder(w).Encode(map[string]string{
+				"error": "Erro ao buscar usuários no banco de dados",
+			})
 			return
 		}
-		defer rows.Close()
-		// Create a slice to store the user data
-		users := []map[string]interface{}{}
-		// Iterate over the rows and populate the user data
-		for rows.Next() {
-			var user usersStruct
-			err := rows.StructScan(&user)
-			if err != nil {
-				s.Respond(w, r, http.StatusInternalServerError, errors.New("Problem accessing DB"))
-				return
+
+		log.Info().Int("quantidade_usuarios", len(users)).Msg("Usuários encontrados")
+
+		instances := make([]instanceResponse, 0)
+		for _, user := range users {
+			log.Debug().
+				Int("id", user.Id).
+				Str("name", user.Name).
+				Bool("connected", user.Connected.Bool).
+				Msg("Processando usuário")
+
+			instance := instanceResponse{
+				Id:         user.Id,
+				Name:       user.Name,
+				Token:      user.Token,
+				Connected:  user.Connected.Bool,
+				Webhook:    user.Webhook,
+				Jid:        user.Jid,
+				Events:     user.Events,
+				Expiration: user.Expiration.Int64,
 			}
-			userMap := map[string]interface{}{
-				"id":         user.Id,
-				"name":       user.Name,
-				"token":      user.Token,
-				"webhook":    user.Webhook,
-				"jid":        user.Jid,
-				"qrcode":     user.Qrcode,
-				"connected":  user.Connected.Bool,
-				"expiration": user.Expiration,
-				"events":     user.Events,
+			if !user.Connected.Bool {
+				instance.QRCode = user.Qrcode
 			}
-			users = append(users, userMap)
+			instances = append(instances, instance)
 		}
-		// Check for any error that occurred during iteration
-		if err := rows.Err(); err != nil {
-			s.Respond(w, r, http.StatusInternalServerError, errors.New("Problem accessing DB"))
-			return
-		}
-		// Set the response content type to JSON
+
+		log.Info().Msg("Enviando resposta")
 		w.Header().Set("Content-Type", "application/json")
-		// Encode the user data as JSON and write the response
-		err = json.NewEncoder(w).Encode(users)
-		if err != nil {
-			s.Respond(w, r, http.StatusInternalServerError, errors.New("Problem encoding JSON"))
-			return
+		w.WriteHeader(http.StatusOK)
+		if err := json.NewEncoder(w).Encode(map[string]interface{}{
+			"instances": instances,
+		}); err != nil {
+			log.Error().Err(err).Msg("Erro ao codificar resposta JSON")
+			w.WriteHeader(http.StatusInternalServerError)
+			json.NewEncoder(w).Encode(map[string]string{
+				"error": "Erro ao codificar resposta",
+			})
 		}
 	}
 }
@@ -3455,4 +3595,197 @@ func contains(slice []string, item string) bool {
 		}
 	}
 	return false
+}
+
+func (s *server) SetProxy() http.HandlerFunc {
+	type proxyStruct struct {
+		ProxyURL string `json:"proxy_url"` // Format: "socks5://user:pass@host:port" or "http://host:port"
+		Enable   bool   `json:"enable"`    // Whether to enable or disable proxy
+	}
+
+	return func(w http.ResponseWriter, r *http.Request) {
+		txtid := r.Context().Value("userinfo").(Values).Get("Id")
+		userid, _ := strconv.Atoi(txtid)
+
+		// Check if client exists and is connected
+		if clientPointer[userid] != nil && clientPointer[userid].IsConnected() {
+			s.Respond(w, r, http.StatusBadRequest, errors.New("cannot set proxy while connected. Please disconnect first"))
+			return
+		}
+
+		decoder := json.NewDecoder(r.Body)
+		var t proxyStruct
+		err := decoder.Decode(&t)
+		if err != nil {
+			s.Respond(w, r, http.StatusBadRequest, errors.New("could not decode payload"))
+			return
+		}
+
+		// If enable is false, remove proxy configuration
+		if !t.Enable {
+			_, err = s.db.Exec("UPDATE users SET proxy_url = NULL WHERE id = $1", userid)
+			if err != nil {
+				s.Respond(w, r, http.StatusInternalServerError, errors.New("failed to remove proxy configuration"))
+				return
+			}
+
+			response := map[string]interface{}{"Details": "Proxy disabled successfully"}
+			responseJson, err := json.Marshal(response)
+			if err != nil {
+				s.Respond(w, r, http.StatusInternalServerError, err)
+			} else {
+				s.Respond(w, r, http.StatusOK, string(responseJson))
+			}
+			return
+		}
+
+		// Validate proxy URL
+		if t.ProxyURL == "" {
+			s.Respond(w, r, http.StatusBadRequest, errors.New("missing proxy_url in payload"))
+			return
+		}
+
+		proxyURL, err := url.Parse(t.ProxyURL)
+		if err != nil {
+			s.Respond(w, r, http.StatusBadRequest, errors.New("invalid proxy URL format"))
+			return
+		}
+
+		// Only allow http and socks5 proxies
+		if proxyURL.Scheme != "http" && proxyURL.Scheme != "socks5" {
+			s.Respond(w, r, http.StatusBadRequest, errors.New("only HTTP and SOCKS5 proxies are supported"))
+			return
+		}
+
+		// Store proxy configuration in database
+		_, err = s.db.Exec("UPDATE users SET proxy_url = $1 WHERE id = $2", t.ProxyURL, userid)
+		if err != nil {
+			s.Respond(w, r, http.StatusInternalServerError, errors.New("failed to save proxy configuration"))
+			return
+		}
+
+		response := map[string]interface{}{
+			"Details":  "Proxy configured successfully",
+			"ProxyURL": t.ProxyURL,
+		}
+		responseJson, err := json.Marshal(response)
+		if err != nil {
+			s.Respond(w, r, http.StatusInternalServerError, err)
+		} else {
+			s.Respond(w, r, http.StatusOK, string(responseJson))
+		}
+	}
+}
+
+func (s *server) ValidateToken() http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "application/json")
+
+		authHeader := r.Header.Get("Authorization")
+		if authHeader == "" {
+			log.Warn().Msg("Token não fornecido")
+			json.NewEncoder(w).Encode(map[string]interface{}{
+				"error": "Token não fornecido",
+				"valid": false,
+			})
+			w.WriteHeader(http.StatusUnauthorized)
+			return
+		}
+
+		// Remove o prefixo "Bearer " se existir
+		token := strings.TrimPrefix(authHeader, "Bearer ")
+		log.Info().Str("token_recebido", token).Str("token_esperado", *adminToken).Msg("Validando token")
+
+		// Verifica se o token corresponde ao token administrativo
+		if token != *adminToken {
+			log.Warn().Str("token_recebido", token).Str("token_esperado", *adminToken).Msg("Token inválido")
+			w.WriteHeader(http.StatusUnauthorized)
+			json.NewEncoder(w).Encode(map[string]interface{}{
+				"error": "Token inválido",
+				"valid": false,
+			})
+			return
+		}
+
+		log.Info().Msg("Token válido")
+		w.WriteHeader(http.StatusOK)
+		json.NewEncoder(w).Encode(map[string]interface{}{
+			"valid": true,
+		})
+	}
+}
+
+func (s *server) EditUser() http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		// Get the user ID from the request URL
+		vars := mux.Vars(r)
+		userID := vars["id"]
+
+		// Parse the request body
+		var user struct {
+			Name       string `json:"name"`
+			Token      string `json:"token"`
+			Webhook    string `json:"webhook"`
+			Expiration int    `json:"expiration"`
+			Events     string `json:"events"`
+		}
+		if err := json.NewDecoder(r.Body).Decode(&user); err != nil {
+			s.Respond(w, r, http.StatusBadRequest, errors.New("Incomplete data in Payload. Required name, token, webhook, expiration, events"))
+			return
+		}
+
+		// Check if a user with the same token already exists (excluding current user)
+		var count int
+		err := s.db.Get(&count, "SELECT COUNT(*) FROM users WHERE token = $1 AND id != $2", user.Token, userID)
+		if err != nil {
+			s.Respond(w, r, http.StatusInternalServerError, errors.New("Problem accessing DB"))
+			return
+		}
+		if count > 0 {
+			s.Respond(w, r, http.StatusConflict, errors.New("User with the same token already exists"))
+			return
+		}
+
+		// Validate the events input
+		validEvents := []string{"Message", "ReadReceipt", "Presence", "HistorySync", "ChatPresence", "All"}
+		eventList := strings.Split(user.Events, ",")
+		for _, event := range eventList {
+			event = strings.TrimSpace(event)
+			if !Find(validEvents, event) {
+				s.Respond(w, r, http.StatusBadRequest, errors.New("Invalid event: "+event))
+				return
+			}
+		}
+
+		// Update the user in the database
+		result, err := s.db.Exec(
+			"UPDATE users SET name = $1, token = $2, webhook = $3, expiration = $4, events = $5 WHERE id = $6",
+			user.Name, user.Token, user.Webhook, user.Expiration, user.Events, userID,
+		)
+		if err != nil {
+			s.Respond(w, r, http.StatusInternalServerError, errors.New("Problem accessing DB"))
+			log.Error().Str("error", fmt.Sprintf("%v", err)).Msg("Admin DB Error")
+			return
+		}
+
+		// Check if the user was updated
+		rowsAffected, err := result.RowsAffected()
+		if err != nil {
+			s.Respond(w, r, http.StatusInternalServerError, errors.New("Problem checking rows affected"))
+			return
+		}
+		if rowsAffected == 0 {
+			s.Respond(w, r, http.StatusNotFound, errors.New("User not found"))
+			return
+		}
+
+		// Return a success response
+		response := map[string]interface{}{
+			"id": userID,
+		}
+		if err := json.NewEncoder(w).Encode(response); err != nil {
+			s.Respond(w, r, http.StatusInternalServerError, errors.New("Problem encoding JSON"))
+			return
+		}
+	}
 }

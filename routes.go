@@ -21,22 +21,38 @@ func (s *server) routes() {
 	}
 	exPath := filepath.Dir(ex)
 
+	var routerLog zerolog.Logger
 	if *logType == "json" {
-		log = zerolog.New(os.Stdout).With().Timestamp().Str("role", filepath.Base(os.Args[0])).Str("host", *address).Logger()
+		routerLog = zerolog.New(os.Stdout).
+			With().
+			Timestamp().
+			Str("role", filepath.Base(os.Args[0])).
+			Str("host", *address).
+			Logger()
 	} else {
-		output := zerolog.ConsoleWriter{Out: os.Stdout, TimeFormat: time.RFC3339, NoColor: !*colorOutput}
-		log = zerolog.New(output).With().Timestamp().Str("role", filepath.Base(os.Args[0])).Str("host", *address).Logger()
+		output := zerolog.ConsoleWriter{
+			Out:        os.Stdout,
+			TimeFormat: time.RFC3339,
+			NoColor:    !*colorOutput,
+		}
+		routerLog = zerolog.New(output).
+			With().
+			Timestamp().
+			Str("role", filepath.Base(os.Args[0])).
+			Str("host", *address).
+			Logger()
 	}
 
 	adminRoutes := s.router.PathPrefix("/admin").Subrouter()
 	adminRoutes.Use(s.authadmin)
 	adminRoutes.Handle("/users", s.ListUsers()).Methods("GET")
 	adminRoutes.Handle("/users", s.AddUser()).Methods("POST")
+	adminRoutes.Handle("/users/{id}", s.EditUser()).Methods("PUT")
 	adminRoutes.Handle("/users/{id}", s.DeleteUser()).Methods("DELETE")
 
 	c := alice.New()
 	c = c.Append(s.authalice)
-	c = c.Append(hlog.NewHandler(log))
+	c = c.Append(hlog.NewHandler(routerLog))
 
 	c = c.Append(hlog.AccessHandler(func(r *http.Request, status, size int, duration time.Duration) {
 		hlog.FromRequest(r).Info().
@@ -64,6 +80,7 @@ func (s *server) routes() {
 	s.router.Handle("/webhook", c.Then(s.GetWebhook())).Methods("GET")
 	s.router.Handle("/webhook", c.Then(s.DeleteWebhook())).Methods("DELETE")     // Nova rota
 	s.router.Handle("/webhook/update", c.Then(s.UpdateWebhook())).Methods("PUT") // Nova rota
+	s.router.Handle("/session/proxy", c.Then(s.SetProxy())).Methods("POST")
 
 	s.router.Handle("/chat/send/text", c.Then(s.SendMessage())).Methods("POST")
 	s.router.Handle("/chat/send/image", c.Then(s.SendImage())).Methods("POST")
@@ -75,6 +92,7 @@ func (s *server) routes() {
 	s.router.Handle("/chat/send/location", c.Then(s.SendLocation())).Methods("POST")
 	s.router.Handle("/chat/send/contact", c.Then(s.SendContact())).Methods("POST")
 	s.router.Handle("/chat/react", c.Then(s.React())).Methods("POST")
+	s.router.Handle("/user/presence", c.Then(s.SendPresence())).Methods("POST")
 	s.router.Handle("/chat/edit", c.Then(s.Edit())).Methods("POST")
 	s.router.Handle("/chat/revoke", c.Then(s.Revoke())).Methods("POST")
 	s.router.Handle("/chat/send/buttons", c.Then(s.SendButtons())).Methods("POST")
@@ -97,6 +115,12 @@ func (s *server) routes() {
 	s.router.Handle("/group/invitelink", c.Then(s.GetGroupInviteLink())).Methods("GET")
 	s.router.Handle("/group/photo", c.Then(s.SetGroupPhoto())).Methods("POST")
 	s.router.Handle("/group/name", c.Then(s.SetGroupName())).Methods("POST")
+	s.router.Handle("/newsletter/list", c.Then(s.ListNewsletter())).Methods("GET")
+	// s.router.Handle("/newsletters/info", c.Then(s.GetNewsletterInfo())).Methods("GET")
 
+	// Rota pública para validação de token
+	s.router.HandleFunc("/api/validate-token", s.ValidateToken()).Methods("GET")
+
+	// Rota para arquivos estáticos deve ser a última
 	s.router.PathPrefix("/").Handler(http.FileServer(http.Dir(exPath + "/static/")))
 }
