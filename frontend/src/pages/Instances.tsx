@@ -520,9 +520,36 @@ const Instances: React.FC = () => {
           flex: 1,
           mb: 3,
           '& .MuiTableCell-root': {
-            borderColor: '#374045'
+            borderColor: 'rgba(55, 64, 69, 0.5)',
+            py: 2.5,
+            px: 2,
+            fontSize: '0.925rem'
           },
-          // Estilo da scrollbar
+          '& .MuiTableRow-root': {
+            transition: 'background-color 0.2s ease',
+            '&:hover': {
+              bgcolor: 'rgba(134, 150, 160, 0.05)'
+            }
+          },
+          '& .MuiTableHead-root .MuiTableRow-root': {
+            '&:hover': {
+              bgcolor: 'transparent'
+            }
+          },
+          '& .MuiTableCell-head': {
+            fontWeight: 500,
+            bgcolor: '#202c33',
+            position: 'sticky',
+            top: 0,
+            zIndex: 1,
+            borderBottom: '2px solid rgba(55, 64, 69, 0.8)',
+            '&:first-of-type': {
+              borderTopLeftRadius: 16
+            },
+            '&:last-of-type': {
+              borderTopRightRadius: 16
+            }
+          },
           '&::-webkit-scrollbar': {
             width: '10px',
             height: '10px'
@@ -542,41 +569,190 @@ const Instances: React.FC = () => {
         <Table>
           <TableHead>
             <TableRow>
-              <TableCell sx={{ color: '#8696a0' }}>Nome</TableCell>
-              <TableCell sx={{ color: '#8696a0' }}>Status</TableCell>
-              {visibleColumns.id && <TableCell sx={{ color: '#8696a0' }}>ID</TableCell>}
-              {visibleColumns.token && <TableCell sx={{ color: '#8696a0' }}>Token</TableCell>}
-              {visibleColumns.webhook && <TableCell sx={{ color: '#8696a0' }}>Webhook</TableCell>}
-              {visibleColumns.jid && <TableCell sx={{ color: '#8696a0' }}>JID</TableCell>}
-              {visibleColumns.events && <TableCell sx={{ color: '#8696a0' }}>Eventos</TableCell>}
-              {visibleColumns.expiration && <TableCell sx={{ color: '#8696a0' }}>Expiração</TableCell>}
-              <TableCell sx={{ color: '#8696a0' }}>Ações</TableCell>
+              <TableCell sx={{ color: '#8696a0', width: '15%' }}>Nome</TableCell>
+              <TableCell sx={{ color: '#8696a0', width: '15%' }}>Status</TableCell>
+              {visibleColumns.id && <TableCell sx={{ color: '#8696a0', width: '8%' }}>ID</TableCell>}
+              {visibleColumns.token && (
+                <TableCell sx={{ color: '#8696a0', width: '20%' }}>
+                  <Box sx={{ display: 'flex', alignItems: 'center' }}>
+                    Token
+                    <Typography variant="caption" sx={{ ml: 1, color: 'rgba(134, 150, 160, 0.7)' }}>
+                      (clique para copiar)
+                    </Typography>
+                  </Box>
+                </TableCell>
+              )}
+              {visibleColumns.webhook && <TableCell sx={{ color: '#8696a0', width: '20%' }}>Webhook</TableCell>}
+              {visibleColumns.jid && <TableCell sx={{ color: '#8696a0', width: '20%' }}>JID</TableCell>}
+              {visibleColumns.events && <TableCell sx={{ color: '#8696a0', width: '10%' }}>Eventos</TableCell>}
+              {visibleColumns.expiration && <TableCell sx={{ color: '#8696a0', width: '12%' }}>Expiração</TableCell>}
+              <TableCell sx={{ color: '#8696a0', width: '15%' }}>Ações</TableCell>
             </TableRow>
           </TableHead>
           <TableBody>
             {instances.map((instance) => (
               <TableRow key={instance.id}>
-                <TableCell sx={{ color: '#e9edef' }}>{instance.name}</TableCell>
+                <TableCell sx={{ 
+                  color: '#e9edef',
+                  fontWeight: 500
+                }}>
+                  {instance.name}
+                </TableCell>
                 <TableCell>
                   <Box sx={{ 
                     display: 'flex', 
-                    alignItems: 'center',
-                    color: instance.connected ? '#00a884' : '#8696a0'
+                    flexDirection: 'column',
+                    gap: 1
                   }}>
-                    {instance.connected ? 'Conectado' : 'Desconectado'}
+                    <Box sx={{ 
+                      display: 'flex', 
+                      alignItems: 'center',
+                      bgcolor: instance.connected ? 'rgba(0, 168, 132, 0.1)' : 'rgba(234, 67, 53, 0.1)',
+                      borderRadius: '8px',
+                      py: 0.75,
+                      px: 1.5,
+                      width: 'fit-content'
+                    }}>
+                      <Box sx={{
+                        width: 6,
+                        height: 6,
+                        borderRadius: '50%',
+                        bgcolor: instance.connected ? '#00a884' : '#ea4335',
+                        mr: 1,
+                        boxShadow: instance.connected ? '0 0 0 2px rgba(0, 168, 132, 0.2)' : '0 0 0 2px rgba(234, 67, 53, 0.2)'
+                      }} />
+                      <Typography sx={{
+                        fontSize: '0.875rem',
+                        fontWeight: 500,
+                        color: instance.connected ? '#00a884' : '#ea4335',
+                        letterSpacing: '0.01em'
+                      }}>
+                        {instance.connected ? 'Conectado' : 'Desconectado'}
+                      </Typography>
+                    </Box>
+                    <Box sx={{ 
+                      display: 'flex', 
+                      alignItems: 'center',
+                      bgcolor: instance.loggedIn ? 'rgba(0, 168, 132, 0.1)' : 'rgba(245, 124, 0, 0.1)',
+                      borderRadius: '8px',
+                      py: 0.75,
+                      px: 1.5,
+                      width: 'fit-content'
+                    }}>
+                      <Box sx={{
+                        width: 6,
+                        height: 6,
+                        borderRadius: '50%',
+                        bgcolor: instance.loggedIn ? '#00a884' : '#f57c00',
+                        mr: 1,
+                        boxShadow: instance.loggedIn ? '0 0 0 2px rgba(0, 168, 132, 0.2)' : '0 0 0 2px rgba(245, 124, 0, 0.2)'
+                      }} />
+                      <Typography sx={{
+                        fontSize: '0.875rem',
+                        fontWeight: 500,
+                        color: instance.loggedIn ? '#00a884' : '#f57c00',
+                        letterSpacing: '0.01em'
+                      }}>
+                        {instance.loggedIn ? 'Autenticado' : 'Ler QRCode'}
+                      </Typography>
+                    </Box>
                   </Box>
                 </TableCell>
-                {visibleColumns.id && <TableCell sx={{ color: '#e9edef' }}>{instance.id}</TableCell>}
-                {visibleColumns.token && <TableCell sx={{ color: '#e9edef' }}>{instance.token}</TableCell>}
-                {visibleColumns.webhook && <TableCell sx={{ color: '#e9edef' }}>{instance.webhook}</TableCell>}
-                {visibleColumns.jid && <TableCell sx={{ color: '#e9edef' }}>{instance.jid}</TableCell>}
+                {visibleColumns.id && (
+                  <TableCell sx={{ 
+                    color: '#e9edef',
+                    fontFamily: 'monospace',
+                    fontSize: '0.875rem'
+                  }}>
+                    {instance.id}
+                  </TableCell>
+                )}
+                {visibleColumns.token && (
+                  <TableCell 
+                    onClick={() => navigator.clipboard.writeText(instance.token)}
+                    sx={{ 
+                      color: '#e9edef',
+                      fontFamily: 'monospace',
+                      fontSize: '0.875rem',
+                      cursor: 'pointer',
+                      transition: 'all 0.2s ease',
+                      '&:hover': {
+                        bgcolor: 'rgba(134, 150, 160, 0.1)',
+                      }
+                    }}
+                  >
+                    <Tooltip title="Copiar token" placement="top">
+                      <Box sx={{ 
+                        maxWidth: '200px',
+                        overflow: 'hidden',
+                        textOverflow: 'ellipsis',
+                        whiteSpace: 'nowrap'
+                      }}>
+                        {instance.token}
+                      </Box>
+                    </Tooltip>
+                  </TableCell>
+                )}
+                {visibleColumns.webhook && (
+                  <TableCell>
+                    <Box sx={{ 
+                      maxWidth: '200px',
+                      overflow: 'hidden',
+                      textOverflow: 'ellipsis',
+                      whiteSpace: 'nowrap',
+                      color: '#e9edef',
+                      fontSize: '0.875rem'
+                    }}>
+                      {instance.webhook}
+                    </Box>
+                  </TableCell>
+                )}
+                {visibleColumns.jid && (
+                  <TableCell>
+                    <Box sx={{ 
+                      maxWidth: '200px',
+                      overflow: 'hidden',
+                      textOverflow: 'ellipsis',
+                      whiteSpace: 'nowrap',
+                      color: '#e9edef',
+                      fontFamily: 'monospace',
+                      fontSize: '0.875rem'
+                    }}>
+                      {instance.jid}
+                    </Box>
+                  </TableCell>
+                )}
                 {visibleColumns.events && (
-                  <TableCell sx={{ color: '#e9edef' }}>
-                    {instance.events?.join(', ')}
+                  <TableCell>
+                    <Box sx={{ 
+                      display: 'flex',
+                      flexWrap: 'wrap',
+                      gap: 0.5
+                    }}>
+                      {instance.events?.map((event) => (
+                        <Box
+                          key={event}
+                          sx={{
+                            bgcolor: 'rgba(134, 150, 160, 0.1)',
+                            color: '#e9edef',
+                            px: 1,
+                            py: 0.5,
+                            borderRadius: 1,
+                            fontSize: '0.75rem',
+                            fontWeight: 500
+                          }}
+                        >
+                          {event}
+                        </Box>
+                      ))}
+                    </Box>
                   </TableCell>
                 )}
                 {visibleColumns.expiration && (
-                  <TableCell sx={{ color: '#e9edef' }}>
+                  <TableCell sx={{ 
+                    color: instance.expiration ? '#e9edef' : '#8696a0',
+                    fontWeight: instance.expiration ? 500 : 400
+                  }}>
                     {instance.expiration ? `${instance.expiration} dias` : 'Sem expiração'}
                   </TableCell>
                 )}
