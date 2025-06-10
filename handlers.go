@@ -527,7 +527,7 @@ func (s *server) Logout() http.HandlerFunc {
 			return
 		} else {
 			if clientPointer[userid].IsLoggedIn() == true && clientPointer[userid].IsConnected() == true {
-				err := clientPointer[userid].Logout()
+				err := clientPointer[userid].Logout(r.Context())
 				if err != nil {
 					log.Error().Str("jid", jid).Msg("Could not perform logout")
 					s.Respond(w, r, http.StatusInternalServerError, errors.New("Could not perform logout"))
@@ -597,7 +597,7 @@ func (s *server) PairPhone() http.HandlerFunc {
 			return
 		}
 
-		linkingCode, err := clientPointer[userid].PairPhone(t.Phone, true, whatsmeow.PairClientChrome, "Chrome (Linux)")
+		linkingCode, err := clientPointer[userid].PairPhone(r.Context(), t.Phone, true, whatsmeow.PairClientChrome, "Chrome (Linux)")
 		if err != nil {
 			log.Error().Msg(fmt.Sprintf("%s", err))
 			s.Respond(w, r, http.StatusBadRequest, err)
@@ -712,7 +712,7 @@ func (s *server) SendDocument() http.HandlerFunc {
 				return
 			} else {
 				filedata = dataURL.Data
-				uploaded, err = clientPointer[userid].Upload(context.Background(), filedata, whatsmeow.MediaDocument)
+				uploaded, err = clientPointer[userid].Upload(r.Context(), filedata, whatsmeow.MediaDocument)
 				if err != nil {
 					s.Respond(w, r, http.StatusInternalServerError, errors.New(fmt.Sprintf("Failed to upload file: %v", err)))
 					return
@@ -749,7 +749,7 @@ func (s *server) SendDocument() http.HandlerFunc {
 			msg.ExtendedTextMessage.ContextInfo.MentionedJID = t.ContextInfo.MentionedJID
 		}
 
-		resp, err = clientPointer[userid].SendMessage(context.Background(), recipient, msg, whatsmeow.SendRequestExtra{ID: msgid})
+		resp, err = clientPointer[userid].SendMessage(r.Context(), recipient, msg, whatsmeow.SendRequestExtra{ID: msgid})
 		if err != nil {
 			s.Respond(w, r, http.StatusInternalServerError, errors.New(fmt.Sprintf("Error sending message: %v", err)))
 			return
@@ -833,7 +833,7 @@ func (s *server) SendAudio() http.HandlerFunc {
 				return
 			} else {
 				filedata = dataURL.Data
-				uploaded, err = clientPointer[userid].Upload(context.Background(), filedata, whatsmeow.MediaAudio)
+				uploaded, err = clientPointer[userid].Upload(r.Context(), filedata, whatsmeow.MediaAudio)
 				if err != nil {
 					s.Respond(w, r, http.StatusInternalServerError, errors.New(fmt.Sprintf("Failed to upload file: %v", err)))
 					return
@@ -875,7 +875,7 @@ func (s *server) SendAudio() http.HandlerFunc {
 			msg.ExtendedTextMessage.ContextInfo.MentionedJID = t.ContextInfo.MentionedJID
 		}
 
-		resp, err = clientPointer[userid].SendMessage(context.Background(), recipient, msg, whatsmeow.SendRequestExtra{ID: msgid})
+		resp, err = clientPointer[userid].SendMessage(r.Context(), recipient, msg, whatsmeow.SendRequestExtra{ID: msgid})
 		if err != nil {
 			s.Respond(w, r, http.StatusInternalServerError, errors.New(fmt.Sprintf("Error sending message: %v", err)))
 			return
@@ -958,7 +958,7 @@ func (s *server) SendImage() http.HandlerFunc {
 				return
 			} else {
 				filedata = dataURL.Data
-				uploaded, err = clientPointer[userid].Upload(context.Background(), filedata, whatsmeow.MediaImage)
+				uploaded, err = clientPointer[userid].Upload(r.Context(), filedata, whatsmeow.MediaImage)
 				if err != nil {
 					s.Respond(w, r, http.StatusInternalServerError, errors.New(fmt.Sprintf("Failed to upload file: %v", err)))
 					return
@@ -1026,7 +1026,7 @@ func (s *server) SendImage() http.HandlerFunc {
 			msg.ImageMessage.ContextInfo.MentionedJID = t.ContextInfo.MentionedJID
 		}
 
-		resp, err = clientPointer[userid].SendMessage(context.Background(), recipient, msg, whatsmeow.SendRequestExtra{ID: msgid})
+		resp, err = clientPointer[userid].SendMessage(r.Context(), recipient, msg, whatsmeow.SendRequestExtra{ID: msgid})
 		if err != nil {
 			s.Respond(w, r, http.StatusInternalServerError, errors.New(fmt.Sprintf("Error sending message: %v", err)))
 			return
@@ -1108,7 +1108,7 @@ func (s *server) SendSticker() http.HandlerFunc {
 				return
 			} else {
 				filedata = dataURL.Data
-				uploaded, err = clientPointer[userid].Upload(context.Background(), filedata, whatsmeow.MediaImage)
+				uploaded, err = clientPointer[userid].Upload(r.Context(), filedata, whatsmeow.MediaImage)
 				if err != nil {
 					s.Respond(w, r, http.StatusInternalServerError, errors.New(fmt.Sprintf("Failed to upload file: %v", err)))
 					return
@@ -1144,7 +1144,7 @@ func (s *server) SendSticker() http.HandlerFunc {
 			msg.ExtendedTextMessage.ContextInfo.MentionedJID = t.ContextInfo.MentionedJID
 		}
 
-		resp, err = clientPointer[userid].SendMessage(context.Background(), recipient, msg, whatsmeow.SendRequestExtra{ID: msgid})
+		resp, err = clientPointer[userid].SendMessage(r.Context(), recipient, msg, whatsmeow.SendRequestExtra{ID: msgid})
 		if err != nil {
 			s.Respond(w, r, http.StatusInternalServerError, errors.New(fmt.Sprintf("Error sending message: %v", err)))
 			return
@@ -1227,7 +1227,7 @@ func (s *server) SendVideo() http.HandlerFunc {
 				return
 			} else {
 				filedata = dataURL.Data
-				uploaded, err = clientPointer[userid].Upload(context.Background(), filedata, whatsmeow.MediaVideo)
+				uploaded, err = clientPointer[userid].Upload(r.Context(), filedata, whatsmeow.MediaVideo)
 				if err != nil {
 					s.Respond(w, r, http.StatusInternalServerError, errors.New(fmt.Sprintf("Failed to upload file: %v", err)))
 					return
@@ -1264,7 +1264,7 @@ func (s *server) SendVideo() http.HandlerFunc {
 			msg.ExtendedTextMessage.ContextInfo.MentionedJID = t.ContextInfo.MentionedJID
 		}
 
-		resp, err = clientPointer[userid].SendMessage(context.Background(), recipient, msg, whatsmeow.SendRequestExtra{ID: msgid})
+		resp, err = clientPointer[userid].SendMessage(r.Context(), recipient, msg, whatsmeow.SendRequestExtra{ID: msgid})
 		if err != nil {
 			s.Respond(w, r, http.StatusInternalServerError, errors.New(fmt.Sprintf("Error sending message: %v", err)))
 			return
@@ -1358,7 +1358,7 @@ func (s *server) SendContact() http.HandlerFunc {
 			msg.ExtendedTextMessage.ContextInfo.MentionedJID = t.ContextInfo.MentionedJID
 		}
 
-		resp, err = clientPointer[userid].SendMessage(context.Background(), recipient, msg, whatsmeow.SendRequestExtra{ID: msgid})
+		resp, err = clientPointer[userid].SendMessage(r.Context(), recipient, msg, whatsmeow.SendRequestExtra{ID: msgid})
 		if err != nil {
 			s.Respond(w, r, http.StatusInternalServerError, errors.New(fmt.Sprintf("Error sending message: %v", err)))
 			return
@@ -1454,7 +1454,7 @@ func (s *server) SendLocation() http.HandlerFunc {
 			msg.ExtendedTextMessage.ContextInfo.MentionedJID = t.ContextInfo.MentionedJID
 		}
 
-		resp, err = clientPointer[userid].SendMessage(context.Background(), recipient, msg, whatsmeow.SendRequestExtra{ID: msgid})
+		resp, err = clientPointer[userid].SendMessage(r.Context(), recipient, msg, whatsmeow.SendRequestExtra{ID: msgid})
 		if err != nil {
 			s.Respond(w, r, http.StatusInternalServerError, errors.New(fmt.Sprintf("Error sending message: %v", err)))
 			return
@@ -1556,7 +1556,7 @@ func (s *server) SendButtons() http.HandlerFunc {
 			Buttons:     buttons,
 		}
 
-		resp, err = clientPointer[userid].SendMessage(context.Background(), recipient, &waProto.Message{ViewOnceMessage: &waProto.FutureProofMessage{
+		resp, err = clientPointer[userid].SendMessage(r.Context(), recipient, &waProto.Message{ViewOnceMessage: &waProto.FutureProofMessage{
 			Message: &waProto.Message{
 				ButtonsMessage: msg2,
 			},
@@ -1696,7 +1696,7 @@ func (s *server) SendList() http.HandlerFunc {
 			FooterText:  proto.String(t.FooterText),
 		}
 
-		resp, err = clientPointer[userid].SendMessage(context.Background(), recipient, &waProto.Message{
+		resp, err = clientPointer[userid].SendMessage(r.Context(), recipient, &waProto.Message{
 			ViewOnceMessage: &waProto.FutureProofMessage{
 				Message: &waProto.Message{
 					ListMessage: msg1,
@@ -1795,7 +1795,7 @@ func (s *server) SendMessage() http.HandlerFunc {
 			msg.ExtendedTextMessage.ContextInfo.MentionedJID = t.ContextInfo.MentionedJID
 		}
 
-		resp, err = clientPointer[userid].SendMessage(context.Background(), recipient, msg, whatsmeow.SendRequestExtra{ID: msgid})
+		resp, err = clientPointer[userid].SendMessage(r.Context(), recipient, msg, whatsmeow.SendRequestExtra{ID: msgid})
 		if err != nil {
 			s.Respond(w, r, http.StatusInternalServerError, errors.New(fmt.Sprintf("Error sending message: %v", err)))
 			return
@@ -2246,7 +2246,7 @@ func (s *server) GetContacts() http.HandlerFunc {
 		}
 
 		result := map[types.JID]types.ContactInfo{}
-		result, err := clientPointer[userid].Store.Contacts.GetAllContacts()
+		result, err := clientPointer[userid].Store.Contacts.GetAllContacts(r.Context())
 		if err != nil {
 			s.Respond(w, r, http.StatusInternalServerError, err)
 			return
@@ -2381,7 +2381,7 @@ func (s *server) DownloadImage() http.HandlerFunc {
 		img := msg.GetImageMessage()
 
 		if img != nil {
-			imgdata, err = clientPointer[userid].Download(img)
+			imgdata, err = clientPointer[userid].Download(r.Context(), img)
 			if err != nil {
 				log.Error().Str("error", fmt.Sprintf("%v", err)).Msg("Failed to download image")
 				msg := fmt.Sprintf("Failed to download image %v", err)
@@ -2461,7 +2461,7 @@ func (s *server) DownloadDocument() http.HandlerFunc {
 		doc := msg.GetDocumentMessage()
 
 		if doc != nil {
-			docdata, err = clientPointer[userid].Download(doc)
+			docdata, err = clientPointer[userid].Download(r.Context(), doc)
 			if err != nil {
 				log.Error().Str("error", fmt.Sprintf("%v", err)).Msg("Failed to download document")
 				msg := fmt.Sprintf("Failed to download document %v", err)
@@ -2541,7 +2541,7 @@ func (s *server) DownloadVideo() http.HandlerFunc {
 		doc := msg.GetVideoMessage()
 
 		if doc != nil {
-			docdata, err = clientPointer[userid].Download(doc)
+			docdata, err = clientPointer[userid].Download(r.Context(), doc)
 			if err != nil {
 				log.Error().Str("error", fmt.Sprintf("%v", err)).Msg("Failed to download video")
 				msg := fmt.Sprintf("Failed to download video %v", err)
@@ -2621,7 +2621,7 @@ func (s *server) DownloadAudio() http.HandlerFunc {
 		doc := msg.GetAudioMessage()
 
 		if doc != nil {
-			docdata, err = clientPointer[userid].Download(doc)
+			docdata, err = clientPointer[userid].Download(r.Context(), doc)
 			if err != nil {
 				log.Error().Str("error", fmt.Sprintf("%v", err)).Msg("Failed to download audio")
 				msg := fmt.Sprintf("Failed to download audio %v", err)
@@ -2695,7 +2695,7 @@ func (s *server) Edit() http.HandlerFunc {
 		})
 
 		// Enviando a mensagem de edição
-		resp, err := clientPointer[userid].SendMessage(context.Background(), chat, msg)
+		resp, err := clientPointer[userid].SendMessage(r.Context(), chat, msg)
 		if err != nil {
 			s.Respond(w, r, http.StatusInternalServerError, errors.New(fmt.Sprintf("Error editing message: %v", err)))
 			return
@@ -2771,7 +2771,7 @@ func (s *server) Revoke() http.HandlerFunc {
 		msg := clientPointer[userid].BuildRevoke(chat, sender, types.MessageID(msgid))
 
 		// Enviando a mensagem de revogação
-		resp, err := clientPointer[userid].SendMessage(context.Background(), chat, msg)
+		resp, err := clientPointer[userid].SendMessage(r.Context(), chat, msg)
 		if err != nil {
 			s.Respond(w, r, http.StatusInternalServerError, errors.New(fmt.Sprintf("Error revoking message: %v", err)))
 			return
@@ -2848,7 +2848,7 @@ func (s *server) React() http.HandlerFunc {
 		msg := clientPointer[userid].BuildReaction(chat, sender, types.MessageID(msgid), t.Reaction)
 
 		// Enviando a mensagem de reação
-		resp, err := clientPointer[userid].SendMessage(context.Background(), chat, msg)
+		resp, err := clientPointer[userid].SendMessage(r.Context(), chat, msg)
 		if err != nil {
 			s.Respond(w, r, http.StatusInternalServerError, errors.New(fmt.Sprintf("Error sending reaction: %v", err)))
 			return

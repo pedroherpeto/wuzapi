@@ -159,7 +159,7 @@ func main() {
 	if *waDebug != "" {
 		dbLog = waLog.Stdout("Database", *waDebug, *colorOutput)
 	}
-	container, err = sqlstore.New("postgres", dsn, dbLog)
+	container, err = sqlstore.New(context.Background(), "postgres", dsn, dbLog)
 	if err != nil {
 		log.Fatal().Err(err).Msg("Falha ao criar container sqlstore")
 		os.Exit(1)

@@ -11,12 +11,11 @@ import (
 	"net/http"
 	"os"
 	"path/filepath"
+	"regexp"
 	"strconv"
 	"strings"
 	"sync/atomic"
 	"time"
-
-	"regexp"
 
 	"github.com/go-resty/resty/v2"
 	"github.com/jmoiron/sqlx" // Importação do sqlx
@@ -145,7 +144,7 @@ func (s *server) startClient(userID int, textjid string, token string, subscript
 		jid, _ := parseJID(textjid)
 		// If you want multiple sessions, remember their JIDs and use .GetDevice(jid) or .GetAllDevices() instead.
 		//deviceStore, err := container.GetFirstDevice()
-		deviceStore, err = container.GetDevice(jid)
+		deviceStore, err = container.GetDevice(context.Background(), jid)
 		if err != nil {
 			panic(err)
 		}
@@ -407,7 +406,7 @@ func (mycli *MyClient) myEventHandler(rawEvt interface{}) {
 				}
 			}
 
-			data, err := mycli.WAClient.Download(img)
+			data, err := mycli.WAClient.Download(context.Background(), img)
 			if err != nil {
 				log.Error().Err(err).Msg("Failed to download image")
 				return
@@ -446,7 +445,7 @@ func (mycli *MyClient) myEventHandler(rawEvt interface{}) {
 				}
 			}
 
-			data, err := mycli.WAClient.Download(audio)
+			data, err := mycli.WAClient.Download(context.Background(), audio)
 			if err != nil {
 				log.Error().Err(err).Msg("Failed to download audio")
 				return
@@ -491,7 +490,7 @@ func (mycli *MyClient) myEventHandler(rawEvt interface{}) {
 				}
 			}
 
-			data, err := mycli.WAClient.Download(document)
+			data, err := mycli.WAClient.Download(context.Background(), document)
 			if err != nil {
 				log.Error().Err(err).Msg("Failed to download document")
 				return
@@ -537,7 +536,7 @@ func (mycli *MyClient) myEventHandler(rawEvt interface{}) {
 				}
 			}
 
-			data, err := mycli.WAClient.Download(video)
+			data, err := mycli.WAClient.Download(context.Background(), video)
 			if err != nil {
 				log.Error().Err(err).Msg("Failed to download video")
 				return
