@@ -56,7 +56,11 @@ func callHookFile(txtid string, data map[string]string, fileName, webhookURL str
 	}
 
 	// Generate the URL based on the user directory path
-	baseURL := "http://localhost:5555/files/user_" + txtid + "/"
+	apiURL := os.Getenv("API_URL")
+	if apiURL == "" {
+		apiURL = "http://localhost:5555" // fallback para localhost se API_URL não estiver definida
+	}
+	baseURL := apiURL + "/files/user_" + txtid + "/"
 	fileURL := baseURL + fileName
 
 	// Regular expression to detect Base64 strings (matches "data:<type>;base64,<data>")

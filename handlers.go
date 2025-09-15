@@ -3036,7 +3036,7 @@ func (s *server) ListGroups() http.HandlerFunc {
 			return
 		}
 
-		resp, err := clientPointer[userid].GetJoinedGroups()
+		resp, err := clientPointer[userid].GetJoinedGroups(r.Context())
 
 		if err != nil {
 			msg := fmt.Sprintf("Failed to get group list: %v", err)

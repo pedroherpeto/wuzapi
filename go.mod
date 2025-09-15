@@ -1,8 +1,8 @@
 module wuzapi
 
-go 1.23.0
+go 1.24.0
 
-toolchain go1.23.1
+toolchain go1.24.7
 
 require (
 	github.com/go-resty/resty/v2 v2.11.0
@@ -14,8 +14,8 @@ require (
 	github.com/rs/zerolog v1.34.0
 	github.com/skip2/go-qrcode v0.0.0-20200617195104-da1b6568686e
 	github.com/vincent-petithory/dataurl v1.0.0
-	go.mau.fi/whatsmeow v0.0.0-20250606170101-3afe34f8ab8f
-	google.golang.org/protobuf v1.36.6
+	go.mau.fi/whatsmeow v0.0.0-20250913213658-6e8bb0a6f77f
+	google.golang.org/protobuf v1.36.9
 )
 
 require (
@@ -24,9 +24,12 @@ require (
 )
 
 require (
-	github.com/petermattis/goid v0.0.0-20250508124226-395b08cebbdb // indirect
-	golang.org/x/exp v0.0.0-20250506013437-ce4c2cf36ca6 // indirect
-	golang.org/x/text v0.26.0 // indirect
+	github.com/beeper/argo-go v1.1.2 // indirect
+	github.com/elliotchance/orderedmap/v3 v3.1.0 // indirect
+	github.com/petermattis/goid v0.0.0-20250813065127-a731cc31b4fe // indirect
+	github.com/vektah/gqlparser/v2 v2.5.30 // indirect
+	golang.org/x/exp v0.0.0-20250813145105-42675adae3e6 // indirect
+	golang.org/x/text v0.29.0 // indirect
 	golang.org/x/time v0.5.0 // indirect
 )
 
@@ -40,9 +43,9 @@ require (
 	github.com/mattn/go-isatty v0.0.20 // indirect
 	github.com/rs/xid v1.6.0 // indirect
 	go.mau.fi/libsignal v0.2.0 // indirect
-	go.mau.fi/util v0.8.7 // indirect
-	golang.org/x/crypto v0.39.0 // indirect
-	golang.org/x/net v0.41.0 // indirect
-	golang.org/x/sys v0.33.0 // indirect
+	go.mau.fi/util v0.9.1-0.20250912114103-419604f95907 // indirect
+	golang.org/x/crypto v0.42.0 // indirect
+	golang.org/x/net v0.44.0 // indirect
+	golang.org/x/sys v0.36.0 // indirect
 	rsc.io/qr v0.2.0 // indirect
 )
