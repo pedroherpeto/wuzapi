@@ -95,6 +95,46 @@ The following _webhook_ endpoints are used to get or set the webhook that will b
 * ReadReceipt
 * HistorySync
 * ChatPresence
+* AppStateSyncComplete
+* Connected
+* PushNameSetting
+* PairSuccess
+* StreamReplaced
+* Receipt
+* Presence
+* AppState
+* LoggedOut
+* CallOffer
+* CallAccept
+* CallTerminate
+* CallOfferNotice
+* CallRelayLatency
+* Disconnected
+* ConnectFailure
+* UndecryptableMessage
+* MediaRetry
+* GroupInfo
+* JoinedGroup
+* Picture
+* BlocklistChange
+* Blocklist
+* KeepAliveRestored
+* KeepAliveTimeout
+* ClientOutdated
+* TemporaryBan
+* StreamError
+* PairError
+* PrivacySettings
+* UserAbout
+* OfflineSyncCompleted
+* OfflineSyncPreview
+* IdentityChange
+* NewsletterJoin
+* NewsletterLeave
+* NewsletterMuteChange
+* NewsletterLiveUpdate
+* FBMessage
+* All (subscribes to all events)
 
 
 ## Sets webhook
@@ -148,6 +188,59 @@ Response:
 
 ---
 
+## Update webhook
+
+Updates the webhook configuration and subscribed events.
+
+Endpoint: _/webhook/update_
+
+Method: **PUT**
+
+```
+curl -s -X PUT -H 'Token: 1234ABCD' -H 'Content-Type: application/json' --data '{"webhookURL":"https://new.server/webhook","events":["Message","ReadReceipt"]}' http://localhost:8080/webhook/update
+```
+Response:
+```json
+{ 
+  "code": 200, 
+  "data": { 
+    "webhook": "https://new.server/webhook",
+    "events": ["Message","ReadReceipt"]
+  }, 
+  "success": true 
+}
+```
+
+---
+
+## Delete webhook
+
+Removes the configured webhook.
+
+Endpoint: _/webhook_
+
+Method: **DELETE**
+
+```
+curl -s -X DELETE -H 'Token: 1234ABCD' http://localhost:8080/webhook
+```
+
+---
+
+## Update webhook
+
+Updates the webhook configuration.
+
+Endpoint: _/webhook/update_
+
+Method: **PUT**
+
+```
+curl -s -X PUT -H 'Token: 1234ABCD' -H 'Content-Type: application/json' --data '{"webhookURL":"https://new.server/webhook","events":["Message","ReadReceipt"]}' http://localhost:8080/webhook/update
+```
+
+---
+
 ## Session
 
 The following _session_ endpoints are used to start a session to Whatsapp servers in order to send and receive messages
@@ -162,6 +255,46 @@ Available message types to subscribe to are:
 * ReadReceipt
 * HistorySync
 * ChatPresence
+* AppStateSyncComplete
+* Connected
+* PushNameSetting
+* PairSuccess
+* StreamReplaced
+* Receipt
+* Presence
+* AppState
+* LoggedOut
+* CallOffer
+* CallAccept
+* CallTerminate
+* CallOfferNotice
+* CallRelayLatency
+* Disconnected
+* ConnectFailure
+* UndecryptableMessage
+* MediaRetry
+* GroupInfo
+* JoinedGroup
+* Picture
+* BlocklistChange
+* Blocklist
+* KeepAliveRestored
+* KeepAliveTimeout
+* ClientOutdated
+* TemporaryBan
+* StreamError
+* PairError
+* PrivacySettings
+* UserAbout
+* OfflineSyncCompleted
+* OfflineSyncPreview
+* IdentityChange
+* NewsletterJoin
+* NewsletterLeave
+* NewsletterMuteChange
+* NewsletterLiveUpdate
+* FBMessage
+* All (subscribes to all events)
 
 If you set Immediate to false, the action will wait 10 seconds to verify a successful login. If Immediate is not set or set to true, it will return immedialty, but you will have to check shortly after the /session/status as your session might be disconnected shortly after started if the session was terminated previously via the phone/device.
 
@@ -296,6 +429,82 @@ Response:
   }, 
   "success": true 
 }
+```
+
+---
+
+## Pair Phone
+
+Pairs a phone number with the WhatsApp session.
+
+Endpoint: _/session/pairphone_
+
+Method: **POST**
+
+```
+curl -s -X POST -H 'Token: 1234ABCD' -H 'Content-Type: application/json' --data '{"phone":"+1234567890"}' http://localhost:8080/session/pairphone
+```
+Response:
+```json
+{
+  "code": 200,
+  "data": {
+    "Details": "Phone paired successfully"
+  },
+  "success": true
+}
+```
+
+---
+
+## Set Proxy
+
+Configures proxy settings for the WhatsApp connection.
+
+Endpoint: _/session/proxy_
+
+Method: **POST**
+
+```
+curl -s -X POST -H 'Token: 1234ABCD' -H 'Content-Type: application/json' --data '{"proxy":"http://proxy.example.com:8080"}' http://localhost:8080/session/proxy
+```
+Response:
+```json
+{
+  "code": 200,
+  "data": {
+    "Details": "Proxy configured successfully"
+  },
+  "success": true
+}
+```
+
+---
+
+## Pair Phone
+
+Pairs a phone number with the WhatsApp session.
+
+Endpoint: _/session/pairphone_
+
+Method: **POST**
+
+```
+curl -s -X POST -H 'Token: 1234ABCD' -H 'Content-Type: application/json' --data '{"phone":"+1234567890"}' http://localhost:8080/session/pairphone
+```
+
+---
+
+## Set Proxy
+
+Configures proxy settings for the session.
+
+Endpoint: _/session/proxy_
+
+Method: **POST**
+
+```
+curl -s -X POST -H 'Token: 1234ABCD' -H 'Content-Type: application/json' --data '{"proxy":"http://proxy.example.com:8080"}' http://localhost:8080/session/proxy
 ```
 
 ---
@@ -453,6 +662,32 @@ Response:
       "PushName": "Asternic"
     }
   }
+}
+```
+
+---
+
+## Send User Presence
+
+Sends global user presence (Available or Unavailable).
+
+Endpoint: _/user/presence_
+
+Method: **POST**
+
+```
+curl -s -X POST -H 'Token: 1234ABCD' -H 'Content-Type: application/json' --data '{"type":"available"}' http://localhost:8080/user/presence
+```
+
+Response:
+
+```json
+{
+  "code": 200,
+  "data": {
+    "Details": "Presence set successfully"
+  },
+  "success": true
 }
 ```
 
@@ -616,6 +851,234 @@ Method: **POST**
 
 ```
 curl -X POST -H 'Token: 1234ABCD' -H 'Content-Type: application/json' --data '{"Phone":"5491155554444","Name":"Casa","Vcard":"BEGIN:VCARD\nVERSION:3.0\nN:Doe;John;;;\nFN:John Doe\nORG:Example.com Inc.;\nTITLE:Imaginary test person\nEMAIL;type=INTERNET;type=WORK;type=pref:johnDoe@example.org\nTEL;type=WORK;type=pref:+1 617 555 1212\nTEL;type=WORK:+1 (617) 555-1234\nTEL;type=CELL:+1 781 555 1212\nTEL;type=HOME:+1 202 555 1212\nitem1.ADR;type=WORK:;;2 Enterprise Avenue;Worktown;NY;01111;USA\nitem1.X-ABADR:us\nitem2.ADR;type=HOME;type=pref:;;3 Acacia Avenue;Hoitem2.X-ABADR:us\nEND:VCARD"}' http://localhost:8080/chat/send/contact
+```
+
+---
+
+## Send Buttons Message
+
+Sends a message with interactive buttons.
+
+Endpoint: _/chat/send/buttons_
+
+Method: **POST**
+
+```
+curl -X POST -H 'Token: 1234ABCD' -H 'Content-Type: application/json' --data '{"Phone":"5491155554444","Body":"Choose an option","Buttons":[{"DisplayText":"Option 1","Id":"btn1"},{"DisplayText":"Option 2","Id":"btn2"}]}' http://localhost:8080/chat/send/buttons
+```
+
+---
+
+## Send List Message
+
+Sends a message with a list of options.
+
+Endpoint: _/chat/send/list_
+
+Method: **POST**
+
+```
+curl -X POST -H 'Token: 1234ABCD' -H 'Content-Type: application/json' --data '{"Phone":"5491155554444","Body":"Select an item","ButtonText":"View List","Sections":[{"Title":"Section 1","Rows":[{"Id":"1","Title":"Item 1","Description":"Description 1"}]}]}' http://localhost:8080/chat/send/list
+```
+
+---
+
+## Send Poll Message
+
+Sends a poll message.
+
+Endpoint: _/chat/send/poll_
+
+Method: **POST**
+
+```
+curl -X POST -H 'Token: 1234ABCD' -H 'Content-Type: application/json' --data '{"Phone":"5491155554444","Name":"Poll Question","Options":["Option 1","Option 2","Option 3"]}' http://localhost:8080/chat/send/poll
+```
+
+---
+
+## Edit Message
+
+Edits an existing message.
+
+Endpoint: _/chat/edit_
+
+Method: **POST**
+
+```
+curl -X POST -H 'Token: 1234ABCD' -H 'Content-Type: application/json' --data '{"Phone":"5491155554444","MessageId":"AA3DSE28UDJES3","NewText":"Edited message"}' http://localhost:8080/chat/edit
+```
+
+---
+
+## Revoke Message
+
+Revokes (deletes) a message for everyone.
+
+Endpoint: _/chat/revoke_
+
+Method: **POST**
+
+```
+curl -X POST -H 'Token: 1234ABCD' -H 'Content-Type: application/json' --data '{"Phone":"5491155554444","MessageId":"AA3DSE28UDJES3"}' http://localhost:8080/chat/revoke
+```
+
+---
+
+## Send Buttons Message
+
+Sends a message with interactive buttons.
+
+Endpoint: _/chat/send/buttons_
+
+Method: **POST**
+
+```
+curl -X POST -H 'Token: 1234ABCD' -H 'Content-Type: application/json' --data '{"Phone":"5491155554444","Body":"Choose an option","Buttons":[{"DisplayText":"Option 1","Type":"quickreply"},{"DisplayText":"Option 2","Type":"quickreply"}]}' http://localhost:8080/chat/send/buttons
+```
+Response:
+
+```json
+{
+  "code": 200,
+  "data": {
+    "Details": "Sent",
+    "Id": "90B2F8B13FAC8A9CF6B06E99C7834DC5",
+    "Timestamp": "2022-04-20T12:49:08-03:00"
+  },
+  "success": true
+}
+```
+
+---
+
+## Send List Message
+
+Sends a message with a list of options.
+
+Endpoint: _/chat/send/list_
+
+Method: **POST**
+
+```
+curl -X POST -H 'Token: 1234ABCD' -H 'Content-Type: application/json' --data '{"Phone":"5491155554444","Body":"Choose from list","ButtonText":"View Options","Sections":[{"Title":"Section 1","Rows":[{"Id":"1","Title":"Option 1","Description":"Description 1"}]}]}' http://localhost:8080/chat/send/list
+```
+Response:
+
+```json
+{
+  "code": 200,
+  "data": {
+    "Details": "Sent",
+    "Id": "90B2F8B13FAC8A9CF6B06E99C7834DC5",
+    "Timestamp": "2022-04-20T12:49:08-03:00"
+  },
+  "success": true
+}
+```
+
+---
+
+## Send Poll Message
+
+Sends a poll message.
+
+Endpoint: _/chat/send/poll_
+
+Method: **POST**
+
+```
+curl -X POST -H 'Token: 1234ABCD' -H 'Content-Type: application/json' --data '{"Phone":"5491155554444","Name":"Poll Question","Options":["Option 1","Option 2","Option 3"]}' http://localhost:8080/chat/send/poll
+```
+Response:
+
+```json
+{
+  "code": 200,
+  "data": {
+    "Details": "Sent",
+    "Id": "90B2F8B13FAC8A9CF6B06E99C7834DC5",
+    "Timestamp": "2022-04-20T12:49:08-03:00"
+  },
+  "success": true
+}
+```
+
+---
+
+## Edit Message
+
+Edits an existing message.
+
+Endpoint: _/chat/edit_
+
+Method: **POST**
+
+```
+curl -X POST -H 'Token: 1234ABCD' -H 'Content-Type: application/json' --data '{"Phone":"5491155554444","Body":"Edited message","Id":"90B2F8B13FAC8A9CF6B06E99C7834DC5"}' http://localhost:8080/chat/edit
+```
+Response:
+
+```json
+{
+  "code": 200,
+  "data": {
+    "Details": "Message edited successfully",
+    "Id": "90B2F8B13FAC8A9CF6B06E99C7834DC5"
+  },
+  "success": true
+}
+```
+
+---
+
+## Revoke Message
+
+Revokes (deletes) a message for everyone.
+
+Endpoint: _/chat/revoke_
+
+Method: **POST**
+
+```
+curl -X POST -H 'Token: 1234ABCD' -H 'Content-Type: application/json' --data '{"Phone":"5491155554444","Id":"90B2F8B13FAC8A9CF6B06E99C7834DC5"}' http://localhost:8080/chat/revoke
+```
+Response:
+
+```json
+{
+  "code": 200,
+  "data": {
+    "Details": "Message revoked successfully",
+    "Id": "90B2F8B13FAC8A9CF6B06E99C7834DC5"
+  },
+  "success": true
+}
+```
+
+---
+
+## Send User Presence
+
+Sends user presence information.
+
+Endpoint: _/user/presence_
+
+Method: **POST**
+
+```
+curl -X POST -H 'Token: 1234ABCD' -H 'Content-Type: application/json' --data '{"Phone":"5491155554444","Presence":"available"}' http://localhost:8080/user/presence
+```
+Response:
+
+```json
+{
+  "code": 200,
+  "data": {
+    "Details": "Presence sent successfully"
+  },
+  "success": true
+}
 ```
 
 ---
@@ -926,4 +1389,561 @@ Response:
   "success": true
 }
 ```
+
+---
+
+## Remove Group Photo
+
+Removes the group photo.
+
+Endpoint: _/group/photo/remove_
+
+Method: **POST**
+
+```
+curl -s -X POST -H 'Token: 1234ABCD' -H 'Content-Type: application/json' -d '{"GroupJID":"120362023605733675@g.us"}' http://localhost:8080/group/photo/remove
+```
+
+Response:
+
+```json
+{
+  "code": 200,
+  "data": {
+    "Details": "Group photo removed successfully"
+  },
+  "success": true
+}
+```
+
+---
+
+## Leave Group
+
+Leaves a WhatsApp group.
+
+Endpoint: _/group/leave_
+
+Method: **POST**
+
+```
+curl -s -X POST -H 'Token: 1234ABCD' -H 'Content-Type: application/json' -d '{"GroupJID":"120362023605733675@g.us"}' http://localhost:8080/group/leave
+```
+
+Response:
+
+```json
+{
+  "code": 200,
+  "data": {
+    "Details": "Left group successfully"
+  },
+  "success": true
+}
+```
+
+---
+
+## Set Group Topic
+
+Sets or changes the group topic/description.
+
+Endpoint: _/group/topic_
+
+Method: **POST**
+
+```
+curl -s -X POST -H 'Token: 1234ABCD' -H 'Content-Type: application/json' -d '{"GroupJID":"120362023605733675@g.us","Topic":"New group topic"}' http://localhost:8080/group/topic
+```
+
+Response:
+
+```json
+{
+  "code": 200,
+  "data": {
+    "Details": "Group topic set successfully"
+  },
+  "success": true
+}
+```
+
+---
+
+## Set Group Announce
+
+Enables or disables group announcements.
+
+Endpoint: _/group/announce_
+
+Method: **POST**
+
+```
+curl -s -X POST -H 'Token: 1234ABCD' -H 'Content-Type: application/json' -d '{"GroupJID":"120362023605733675@g.us","Announce":true}' http://localhost:8080/group/announce
+```
+
+Response:
+
+```json
+{
+  "code": 200,
+  "data": {
+    "Details": "Group announce setting updated successfully"
+  },
+  "success": true
+}
+```
+
+---
+
+## Set Group Locked
+
+Locks or unlocks the group.
+
+Endpoint: _/group/locked_
+
+Method: **POST**
+
+```
+curl -s -X POST -H 'Token: 1234ABCD' -H 'Content-Type: application/json' -d '{"GroupJID":"120362023605733675@g.us","Locked":true}' http://localhost:8080/group/locked
+```
+
+Response:
+
+```json
+{
+  "code": 200,
+  "data": {
+    "Details": "Group locked setting updated successfully"
+  },
+  "success": true
+}
+```
+
+---
+
+## Set Disappearing Timer
+
+Sets the disappearing message timer for the group.
+
+Endpoint: _/group/ephemeral_
+
+Method: **POST**
+
+```
+curl -s -X POST -H 'Token: 1234ABCD' -H 'Content-Type: application/json' -d '{"GroupJID":"120362023605733675@g.us","Timer":86400}' http://localhost:8080/group/ephemeral
+```
+
+Response:
+
+```json
+{
+  "code": 200,
+  "data": {
+    "Details": "Disappearing timer set successfully"
+  },
+  "success": true
+}
+```
+
+---
+
+## Join Group
+
+Joins a group using an invite link.
+
+Endpoint: _/group/join_
+
+Method: **POST**
+
+```
+curl -s -X POST -H 'Token: 1234ABCD' -H 'Content-Type: application/json' -d '{"InviteLink":"https://chat.whatsapp.com/HffXhYmzzyJGec61oqMXiz"}' http://localhost:8080/group/join
+```
+
+Response:
+
+```json
+{
+  "code": 200,
+  "data": {
+    "Details": "Joined group successfully",
+    "JID": "120362023605733675@g.us"
+  },
+  "success": true
+}
+```
+
+---
+
+## Get Group Invite Info
+
+Gets information about a group invite link.
+
+Endpoint: _/group/inviteinfo_
+
+Method: **POST**
+
+```
+curl -s -X POST -H 'Token: 1234ABCD' -H 'Content-Type: application/json' -d '{"InviteLink":"https://chat.whatsapp.com/HffXhYmzzyJGec61oqMXiz"}' http://localhost:8080/group/inviteinfo
+```
+
+Response:
+
+```json
+{
+  "code": 200,
+  "data": {
+    "JID": "120362023605733675@g.us",
+    "Name": "Group Name",
+    "Participants": 5,
+    "IsInviteLinkActive": true
+  },
+  "success": true
+}
+```
+
+---
+
+## Update Group Participants
+
+Adds or removes participants from a group.
+
+Endpoint: _/group/updateparticipants_
+
+Method: **POST**
+
+```
+curl -s -X POST -H 'Token: 1234ABCD' -H 'Content-Type: application/json' -d '{"GroupJID":"120362023605733675@g.us","Action":"add","Participants":["5491155554444@s.whatsapp.net"]}' http://localhost:8080/group/updateparticipants
+```
+
+Response:
+
+```json
+{
+  "code": 200,
+  "data": {
+    "Details": "Participants updated successfully"
+  },
+  "success": true
+}
+```
+
+---
+
+## Newsletter
+
+The following _newsletter_ endpoints are used to manage WhatsApp newsletters.
+
+## List Newsletters
+
+Lists all subscribed newsletters.
+
+Endpoint: _/newsletter/list_
+
+Method: **GET**
+
+```
+curl -s -X GET -H 'Token: 1234ABCD' http://localhost:8080/newsletter/list
+```
+
+Response:
+
+```json
+{
+  "code": 200,
+  "data": {
+    "Newsletters": [
+      {
+        "JID": "120363123456789@g.us",
+        "Name": "Newsletter Name",
+        "Description": "Newsletter description",
+        "SubscriberCount": 1000
+      }
+    ]
+  },
+  "success": true
+}
+```
+
+---
+
+## API Validation
+
+## Validate Token
+
+Validates if a token is valid and returns user information.
+
+Endpoint: _/api/validate-token_
+
+Method: **GET**
+
+```
+curl -s -X GET -H 'Token: 1234ABCD' http://localhost:8080/api/validate-token
+```
+
+Response:
+
+```json
+{
+  "code": 200,
+  "data": {
+    "Valid": true,
+    "User": {
+      "Id": 1,
+      "Name": "admin",
+      "Token": "1234ABCD"
+    }
+  },
+  "success": true
+}
+```
+
+---
+
+## Create Group
+
+Creates a new WhatsApp group.
+
+endpoint: _/group/create_
+
+method: **POST**
+
+```
+curl -s -X POST -H 'Token: 1234ABCD' -H 'Content-Type: application/json' --data '{"Name":"My New Group","Participants":["5491155554444@s.whatsapp.net","5491155553333@s.whatsapp.net"]}' http://localhost:8080/group/create
+```
+
+---
+
+## Remove Group Photo
+
+Removes the group photo.
+
+endpoint: _/group/photo/remove_
+
+method: **POST**
+
+```
+curl -s -X POST -H 'Token: 1234ABCD' -H 'Content-Type: application/json' --data '{"GroupJID":"120362023605733675@g.us"}' http://localhost:8080/group/photo/remove
+```
+
+---
+
+## Leave Group
+
+Leaves a group.
+
+endpoint: _/group/leave_
+
+method: **POST**
+
+```
+curl -s -X POST -H 'Token: 1234ABCD' -H 'Content-Type: application/json' --data '{"GroupJID":"120362023605733675@g.us"}' http://localhost:8080/group/leave
+```
+
+---
+
+## Set Group Topic
+
+Sets or changes the group topic/description.
+
+endpoint: _/group/topic_
+
+method: **POST**
+
+```
+curl -s -X POST -H 'Token: 1234ABCD' -H 'Content-Type: application/json' --data '{"GroupJID":"120362023605733675@g.us","Topic":"New group description"}' http://localhost:8080/group/topic
+```
+
+---
+
+## Set Group Announce
+
+Sets group announcement settings.
+
+endpoint: _/group/announce_
+
+method: **POST**
+
+```
+curl -s -X POST -H 'Token: 1234ABCD' -H 'Content-Type: application/json' --data '{"GroupJID":"120362023605733675@g.us","IsAnnounce":true}' http://localhost:8080/group/announce
+```
+
+---
+
+## Set Group Locked
+
+Sets group locked status.
+
+endpoint: _/group/locked_
+
+method: **POST**
+
+```
+curl -s -X POST -H 'Token: 1234ABCD' -H 'Content-Type: application/json' --data '{"GroupJID":"120362023605733675@g.us","IsLocked":true}' http://localhost:8080/group/locked
+```
+
+---
+
+## Set Disappearing Timer
+
+Sets disappearing messages timer for the group.
+
+endpoint: _/group/ephemeral_
+
+method: **POST**
+
+```
+curl -s -X POST -H 'Token: 1234ABCD' -H 'Content-Type: application/json' --data '{"GroupJID":"120362023605733675@g.us","DisappearingTimer":86400}' http://localhost:8080/group/ephemeral
+```
+
+---
+
+## Join Group
+
+Joins a group using an invite link.
+
+endpoint: _/group/join_
+
+method: **POST**
+
+```
+curl -s -X POST -H 'Token: 1234ABCD' -H 'Content-Type: application/json' --data '{"InviteLink":"https://chat.whatsapp.com/HffXhYmzzyJGec61oqMXiz"}' http://localhost:8080/group/join
+```
+
+---
+
+## Get Group Invite Info
+
+Gets information about a group invite link.
+
+endpoint: _/group/inviteinfo_
+
+method: **POST**
+
+```
+curl -s -X POST -H 'Token: 1234ABCD' -H 'Content-Type: application/json' --data '{"InviteLink":"https://chat.whatsapp.com/HffXhYmzzyJGec61oqMXiz"}' http://localhost:8080/group/inviteinfo
+```
+
+---
+
+## Update Group Participants
+
+Adds or removes participants from a group.
+
+endpoint: _/group/updateparticipants_
+
+method: **POST**
+
+```
+curl -s -X POST -H 'Token: 1234ABCD' -H 'Content-Type: application/json' --data '{"GroupJID":"120362023605733675@g.us","Action":"add","Participants":["5491155554444@s.whatsapp.net"]}' http://localhost:8080/group/updateparticipants
+```
+
+---
+
+# Newsletter
+
+The following _newsletter_ endpoints are used to manage WhatsApp newsletters.
+
+## List Newsletters
+
+Returns complete list of subscribed newsletters.
+
+endpoint: _/newsletter/list_
+
+method: **GET**
+
+```
+curl -s -X GET -H 'Token: 1234ABCD' http://localhost:8080/newsletter/list
+```
+
+Response:
+
+```json
+{
+  "code": 200,
+  "data": {
+    "Newsletter": [
+      {
+        "id": "120363144038483540@newsletter",
+        "state": {
+          "type": "active"
+        },
+        "thread_metadata": {
+          "creation_time": "1688746895",
+          "description": {
+            "id": "1689653839450668",
+            "text": "WhatsApp's official channel. Follow for our latest feature launches, updates, exclusive drops and more.",
+            "update_time": "1689653839450668"
+          },
+          "invite": "0029Va4K0PZ5a245NkngBA2M",
+          "name": {
+            "id": "1688746895480511",
+            "text": "WhatsApp",
+            "update_time": "1688746895480511"
+          },
+          "picture": {
+            "direct_path": "/v/t61.24694-24/416962407_970228831134395_8869146381947923973_n.jpg?ccb=11-4&oh=01_Q5AaIRyTfP806JEGJDm0XWU5E-D4LcA-Wj3csSwh1jJTVanC&oe=67D550F1&_nc_sid=5e03e0&_nc_cat=110",
+            "id": "1707950960975554",
+            "type": "IMAGE",
+            "url": ""
+          },
+          "preview": {
+            "direct_path": "/v/t61.24694-24/416962407_970228831134395_8869146381947923973_n.jpg?stp=dst-jpg_s192x192_tt6&ccb=11-4&oh=01_Q5AaIawuPXJUw9grRFJZtAJEc6QNm0XpqJq4X1Ssi9xNI0Qf&oe=67D550F1&_nc_sid=5e03e0&_nc_cat=110",
+            "id": "1707950960975554",
+            "type": "PREVIEW",
+            "url": ""
+          },
+          "settings": {
+            "reaction_codes": {
+              "value": "ALL"
+            }
+          },
+          "subscribers_count": "0",
+          "verification": "verified"
+        },
+        "viewer_metadata": {
+          "mute": "on",
+          "role": "subscriber"
+        }
+      }
+    ]
+  },
+  "success": true
+}
+```
+
+---
+
+# API Utilities
+
+## Validate Token
+
+Validates if a token is valid and returns user information.
+
+endpoint: _/api/validate-token_
+
+method: **GET**
+
+```
+curl -s -X GET -H 'Token: 1234ABCD' http://localhost:8080/api/validate-token
+```
+
+Response:
+
+```json
+{
+  "code": 200,
+  "data": {
+    "valid": true,
+    "user": {
+      "id": 1,
+      "name": "admin",
+      "token": "1234ABCD"
+    }
+  },
+  "success": true
+}
+```
+
+---
 

@@ -36,8 +36,6 @@ func (v Values) Get(key string) string {
 	return v.m[key]
 }
 
-var messageTypes = []string{"Message", "ReadReceipt", "Presence", "HistorySync", "ChatPresence", "All"}
-
 func (s *server) authadmin(next http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		authHeader := r.Header.Get("Authorization")
@@ -209,7 +207,7 @@ func (s *server) Connect() http.HandlerFunc {
 				}
 			} else {
 				for _, arg := range t.Subscribe {
-					if !Find(messageTypes, arg) {
+					if !isValidEventType(arg) {
 						log.Warn().Str("Type", arg).Msg("Message type discarded")
 						continue
 					}
@@ -275,6 +273,25 @@ func (s *server) Disconnect() http.HandlerFunc {
 		if clientPointer[userid].IsConnected() == true {
 			if clientPointer[userid].IsLoggedIn() == true {
 				log.Info().Str("jid", jid).Msg("Disconnection successfull")
+
+				// Send Disconnected webhook before killing the client
+				webhookurl := r.Context().Value("userinfo").(Values).Get("Webhook")
+				if webhookurl != "" {
+					postmap := make(map[string]interface{})
+					postmap["type"] = "Disconnected"
+					postmap["event"] = map[string]interface{}{}
+
+					jsonData, err := json.Marshal(postmap)
+					if err == nil {
+						data := map[string]string{
+							"jsonData": string(jsonData),
+							"token":    token,
+						}
+						log.Info().Str("url", webhookurl).Str("eventType", "Disconnected").Msg("Sending Disconnected webhook")
+						go callHook(webhookurl, data, userid)
+					}
+				}
+
 				killchannel[userid] <- true
 				_, err := s.db.Exec("UPDATE users SET events=$1 WHERE id=$2", "", userid)
 				if err != nil {
@@ -534,6 +551,26 @@ func (s *server) Logout() http.HandlerFunc {
 					return
 				} else {
 					log.Info().Str("jid", jid).Msg("Logged out")
+
+					// Send LoggedOut webhook before killing the client
+					token := r.Context().Value("userinfo").(Values).Get("Token")
+					webhookurl := r.Context().Value("userinfo").(Values).Get("Webhook")
+					if webhookurl != "" {
+						postmap := make(map[string]interface{})
+						postmap["type"] = "LoggedOut"
+						postmap["event"] = map[string]interface{}{}
+
+						jsonData, err := json.Marshal(postmap)
+						if err == nil {
+							data := map[string]string{
+								"jsonData": string(jsonData),
+								"token":    token,
+							}
+							log.Info().Str("url", webhookurl).Str("eventType", "LoggedOut").Msg("Sending LoggedOut webhook")
+							go callHook(webhookurl, data, userid)
+						}
+					}
+
 					killchannel[userid] <- true
 				}
 			} else {
@@ -1040,6 +1077,706 @@ func (s *server) SendImage() http.HandlerFunc {
 		} else {
 			s.Respond(w, r, http.StatusOK, string(responseJson))
 		}
+		return
+	}
+}
+
+// Send Pool
+func (s *server) SendPoll() http.HandlerFunc {
+	type pollRequest struct {
+		Group   string   `json:"group"`   // The recipient's group id (120363313346913103@g.us)
+		Header  string   `json:"header"`  // The poll's headline text
+		Options []string `json:"options"` // The list of poll options
+		Id      string
+	}
+
+	return func(w http.ResponseWriter, r *http.Request) {
+		txtid := r.Context().Value("userinfo").(Values).Get("Id")
+
+		userid, _ := strconv.Atoi(txtid)
+
+		if clientPointer[userid] == nil {
+			s.Respond(w, r, http.StatusInternalServerError, errors.New("No session"))
+			return
+		}
+
+		msgid := ""
+		var resp whatsmeow.SendResponse
+
+		decoder := json.NewDecoder(r.Body)
+		var req pollRequest
+		err := decoder.Decode(&req)
+		if err != nil {
+			s.Respond(w, r, http.StatusBadRequest, errors.New("Could not decode payload"))
+			return
+		}
+
+		if req.Group == "" {
+			s.Respond(w, r, http.StatusBadRequest, errors.New("Missing Grouop in payload"))
+			return
+		}
+
+		if req.Header == "" {
+			s.Respond(w, r, http.StatusBadRequest, errors.New("Missing Header in payload"))
+			return
+		}
+
+		if len(req.Options) < 2 {
+			s.Respond(w, r, http.StatusBadRequest, errors.New("At least 2 options are required"))
+			return
+		}
+
+		if req.Id == "" {
+			msgid = whatsmeow.GenerateMessageID()
+		} else {
+			msgid = req.Id
+		}
+
+		recipient, err := validateMessageFields(req.Group, nil, nil)
+		if err != nil {
+			s.Respond(w, r, http.StatusBadRequest, err)
+			return
+		}
+
+		pollMessage := clientPointer[userid].BuildPollCreation(req.Header, req.Options, 1)
+		resp, err = clientPointer[userid].SendMessage(r.Context(), recipient, pollMessage, whatsmeow.SendRequestExtra{ID: msgid})
+		if err != nil {
+			s.Respond(w, r, http.StatusInternalServerError, errors.New(fmt.Sprintf("Failed to send poll: %v", err)))
+			return
+		}
+
+		log.Info().Str("timestamp", fmt.Sprintf("%v", resp.Timestamp)).Str("id", msgid).Msg("Poll sent")
+
+		response := map[string]interface{}{"Details": "Poll sent successfully", "Id": msgid}
+		responseJson, err := json.Marshal(response)
+		if err != nil {
+			s.Respond(w, r, http.StatusInternalServerError, err)
+		} else {
+			s.Respond(w, r, http.StatusOK, string(responseJson))
+		}
+	}
+}
+
+// Join group invite link
+func (s *server) GroupJoin() http.HandlerFunc {
+
+	type joinGroupStruct struct {
+		Code string
+	}
+
+	return func(w http.ResponseWriter, r *http.Request) {
+
+		txtid := r.Context().Value("userinfo").(Values).Get("Id")
+
+		userid, _ := strconv.Atoi(txtid)
+
+		if clientPointer[userid] == nil {
+			s.Respond(w, r, http.StatusInternalServerError, errors.New("No session"))
+			return
+		}
+
+		decoder := json.NewDecoder(r.Body)
+		var t joinGroupStruct
+		err := decoder.Decode(&t)
+		if err != nil {
+			s.Respond(w, r, http.StatusBadRequest, errors.New("Could not decode Payload"))
+			return
+		}
+
+		if t.Code == "" {
+			s.Respond(w, r, http.StatusBadRequest, errors.New("Missing Code in Payload"))
+			return
+		}
+
+		_, err = clientPointer[userid].JoinGroupWithLink(t.Code)
+
+		if err != nil {
+			log.Error().Str("error", fmt.Sprintf("%v", err)).Msg("Failed to join group")
+			msg := fmt.Sprintf("Failed to join group: %v", err)
+			s.Respond(w, r, http.StatusInternalServerError, msg)
+			return
+		}
+
+		response := map[string]interface{}{"Details": "Group joined successfully"}
+		responseJson, err := json.Marshal(response)
+
+		if err != nil {
+			s.Respond(w, r, http.StatusInternalServerError, err)
+		} else {
+			s.Respond(w, r, http.StatusOK, string(responseJson))
+		}
+
+		return
+	}
+}
+
+// Set group topic (description)
+func (s *server) SetGroupTopic() http.HandlerFunc {
+
+	type setGroupTopicStruct struct {
+		GroupJID string
+		Topic    string
+	}
+
+	return func(w http.ResponseWriter, r *http.Request) {
+
+		txtid := r.Context().Value("userinfo").(Values).Get("Id")
+
+		userid, _ := strconv.Atoi(txtid)
+
+		if clientPointer[userid] == nil {
+			s.Respond(w, r, http.StatusInternalServerError, errors.New("No session"))
+			return
+		}
+
+		decoder := json.NewDecoder(r.Body)
+		var t setGroupTopicStruct
+		err := decoder.Decode(&t)
+		if err != nil {
+			s.Respond(w, r, http.StatusBadRequest, errors.New("Could not decode Payload"))
+			return
+		}
+
+		group, ok := parseJID(t.GroupJID)
+		if !ok {
+			s.Respond(w, r, http.StatusBadRequest, errors.New("Could not parse Group JID"))
+			return
+		}
+
+		if t.Topic == "" {
+			s.Respond(w, r, http.StatusBadRequest, errors.New("Missing Topic in Payload"))
+			return
+		}
+
+		err = clientPointer[userid].SetGroupTopic(group, "", "", t.Topic)
+
+		if err != nil {
+			log.Error().Str("error", fmt.Sprintf("%v", err)).Msg("Failed to set group topic")
+			msg := fmt.Sprintf("Failed to set group topic: %v", err)
+			s.Respond(w, r, http.StatusInternalServerError, msg)
+			return
+		}
+
+		response := map[string]interface{}{"Details": "Group Topic set successfully"}
+		responseJson, err := json.Marshal(response)
+
+		if err != nil {
+			s.Respond(w, r, http.StatusInternalServerError, err)
+		} else {
+			s.Respond(w, r, http.StatusOK, string(responseJson))
+		}
+
+		return
+	}
+}
+
+func (s *server) GroupLeave() http.HandlerFunc {
+
+	type groupLeaveStruct struct {
+		GroupJID string
+	}
+
+	return func(w http.ResponseWriter, r *http.Request) {
+
+		txtid := r.Context().Value("userinfo").(Values).Get("Id")
+
+		userid, _ := strconv.Atoi(txtid)
+
+		if clientPointer[userid] == nil {
+			s.Respond(w, r, http.StatusInternalServerError, errors.New("No session"))
+			return
+		}
+
+		decoder := json.NewDecoder(r.Body)
+		var t groupLeaveStruct
+		err := decoder.Decode(&t)
+		if err != nil {
+			s.Respond(w, r, http.StatusBadRequest, errors.New("Could not decode Payload"))
+			return
+		}
+
+		group, ok := parseJID(t.GroupJID)
+		if !ok {
+			s.Respond(w, r, http.StatusBadRequest, errors.New("Could not parse Group JID"))
+			return
+		}
+
+		err = clientPointer[userid].LeaveGroup(group)
+
+		if err != nil {
+			log.Error().Str("error", fmt.Sprintf("%v", err)).Msg("Failed to leave group")
+			msg := fmt.Sprintf("Failed to leave group: %v", err)
+			s.Respond(w, r, http.StatusInternalServerError, msg)
+			return
+		}
+
+		response := map[string]interface{}{"Details": "Group left successfully"}
+		responseJson, err := json.Marshal(response)
+
+		if err != nil {
+			s.Respond(w, r, http.StatusInternalServerError, err)
+		} else {
+			s.Respond(w, r, http.StatusOK, string(responseJson))
+		}
+
+		return
+	}
+}
+
+// SetGroupAnnounce post
+func (s *server) SetGroupAnnounce() http.HandlerFunc {
+
+	type setGroupAnnounceStruct struct {
+		GroupJID string
+		Announce bool
+	}
+
+	return func(w http.ResponseWriter, r *http.Request) {
+
+		txtid := r.Context().Value("userinfo").(Values).Get("Id")
+
+		userid, _ := strconv.Atoi(txtid)
+
+		if clientPointer[userid] == nil {
+			s.Respond(w, r, http.StatusInternalServerError, errors.New("No session"))
+			return
+		}
+
+		decoder := json.NewDecoder(r.Body)
+		var t setGroupAnnounceStruct
+		err := decoder.Decode(&t)
+		if err != nil {
+			s.Respond(w, r, http.StatusBadRequest, errors.New("Could not decode Payload"))
+			return
+		}
+
+		group, ok := parseJID(t.GroupJID)
+		if !ok {
+			s.Respond(w, r, http.StatusBadRequest, errors.New("Could not parse Group JID"))
+			return
+		}
+
+		err = clientPointer[userid].SetGroupAnnounce(group, t.Announce)
+
+		if err != nil {
+			log.Error().Str("error", fmt.Sprintf("%v", err)).Msg("Failed to set group announce")
+			msg := fmt.Sprintf("Failed to set group announce: %v", err)
+			s.Respond(w, r, http.StatusInternalServerError, msg)
+			return
+		}
+
+		response := map[string]interface{}{"Details": "Group Announce set successfully"}
+		responseJson, err := json.Marshal(response)
+
+		if err != nil {
+			s.Respond(w, r, http.StatusInternalServerError, err)
+		} else {
+			s.Respond(w, r, http.StatusOK, string(responseJson))
+		}
+
+		return
+	}
+}
+
+// add, remove, promote and demote members group
+func (s *server) UpdateGroupParticipants() http.HandlerFunc {
+
+	type updateGroupParticipantsStruct struct {
+		GroupJID string
+		Phone    []string
+		// Action string // add, remove, promote, demote
+		Action string
+	}
+
+	return func(w http.ResponseWriter, r *http.Request) {
+
+		txtid := r.Context().Value("userinfo").(Values).Get("Id")
+
+		userid, _ := strconv.Atoi(txtid)
+
+		if clientPointer[userid] == nil {
+			s.Respond(w, r, http.StatusInternalServerError, errors.New("No session"))
+			return
+		}
+
+		decoder := json.NewDecoder(r.Body)
+		var t updateGroupParticipantsStruct
+		err := decoder.Decode(&t)
+		if err != nil {
+			s.Respond(w, r, http.StatusBadRequest, errors.New("Could not decode Payload"))
+			return
+		}
+
+		group, ok := parseJID(t.GroupJID)
+		if !ok {
+			s.Respond(w, r, http.StatusBadRequest, errors.New("Could not parse Group JID"))
+			return
+		}
+
+		if len(t.Phone) < 1 {
+			s.Respond(w, r, http.StatusBadRequest, errors.New("Missing Phone in Payload"))
+			return
+		}
+		// parse phone numbers
+		phoneParsed := make([]types.JID, len(t.Phone))
+		for i, phone := range t.Phone {
+			phoneParsed[i], ok = parseJID(phone)
+			if !ok {
+				s.Respond(w, r, http.StatusBadRequest, errors.New("Could not parse Phone"))
+				return
+			}
+		}
+
+		if t.Action == "" {
+			s.Respond(w, r, http.StatusBadRequest, errors.New("Missing Action in Payload"))
+			return
+		}
+
+		// parse action
+
+		var action whatsmeow.ParticipantChange
+		switch t.Action {
+		case "add":
+			action = "add"
+		case "remove":
+			action = "remove"
+		case "promote":
+			action = "promote"
+		case "demote":
+			action = "demote"
+		default:
+			s.Respond(w, r, http.StatusBadRequest, errors.New("Invalid Action in Payload"))
+			return
+		}
+
+		_, err = clientPointer[userid].UpdateGroupParticipants(group, phoneParsed, action)
+
+		if err != nil {
+			log.Error().Str("error", fmt.Sprintf("%v", err)).Msg("Failed to change participant group")
+			msg := fmt.Sprintf("Failed to change participant group: %v", err)
+			s.Respond(w, r, http.StatusInternalServerError, msg)
+			return
+		}
+
+		response := map[string]interface{}{"Details": "Group Participants updated successfully"}
+		responseJson, err := json.Marshal(response)
+
+		if err != nil {
+			s.Respond(w, r, http.StatusInternalServerError, err)
+		} else {
+			s.Respond(w, r, http.StatusOK, string(responseJson))
+		}
+
+		return
+	}
+}
+
+// Get group invite info
+func (s *server) GetGroupInviteInfo() http.HandlerFunc {
+
+	type getGroupInviteInfoStruct struct {
+		Code string
+	}
+
+	return func(w http.ResponseWriter, r *http.Request) {
+
+		txtid := r.Context().Value("userinfo").(Values).Get("Id")
+
+		userid, _ := strconv.Atoi(txtid)
+
+		if clientPointer[userid] == nil {
+			s.Respond(w, r, http.StatusInternalServerError, errors.New("No session"))
+			return
+		}
+
+		decoder := json.NewDecoder(r.Body)
+		var t getGroupInviteInfoStruct
+		err := decoder.Decode(&t)
+		if err != nil {
+			s.Respond(w, r, http.StatusBadRequest, errors.New("Could not decode Payload"))
+			return
+		}
+
+		if t.Code == "" {
+			s.Respond(w, r, http.StatusBadRequest, errors.New("Missing Code in Payload"))
+			return
+		}
+
+		groupInfo, err := clientPointer[userid].GetGroupInfoFromLink(t.Code)
+
+		if err != nil {
+			log.Error().Str("error", fmt.Sprintf("%v", err)).Msg("Failed to get group invite info")
+			msg := fmt.Sprintf("Failed to get group invite info: %v", err)
+			s.Respond(w, r, http.StatusInternalServerError, msg)
+			return
+		}
+
+		responseJson, err := json.Marshal(groupInfo)
+
+		if err != nil {
+			s.Respond(w, r, http.StatusInternalServerError, err)
+		} else {
+			s.Respond(w, r, http.StatusOK, string(responseJson))
+		}
+
+		return
+	}
+}
+
+// Create group
+func (s *server) CreateGroup() http.HandlerFunc {
+
+	type createGroupStruct struct {
+		Name         string   `json:"name"`
+		Participants []string `json:"participants"`
+	}
+
+	return func(w http.ResponseWriter, r *http.Request) {
+
+		txtid := r.Context().Value("userinfo").(Values).Get("Id")
+
+		userid, _ := strconv.Atoi(txtid)
+
+		if clientPointer[userid] == nil {
+			s.Respond(w, r, http.StatusInternalServerError, errors.New("No session"))
+			return
+		}
+
+		decoder := json.NewDecoder(r.Body)
+		var t createGroupStruct
+		err := decoder.Decode(&t)
+		if err != nil {
+			s.Respond(w, r, http.StatusBadRequest, errors.New("Could not decode Payload"))
+			return
+		}
+
+		if t.Name == "" {
+			s.Respond(w, r, http.StatusBadRequest, errors.New("Missing Name in Payload"))
+			return
+		}
+
+		if len(t.Participants) < 1 {
+			s.Respond(w, r, http.StatusBadRequest, errors.New("Missing Participants in Payload"))
+			return
+		}
+
+		// Parse participant phone numbers
+		participantJIDs := make([]types.JID, len(t.Participants))
+		var ok bool
+		for i, phone := range t.Participants {
+			participantJIDs[i], ok = parseJID(phone)
+			if !ok {
+				s.Respond(w, r, http.StatusBadRequest, errors.New("Could not parse Participant Phone"))
+				return
+			}
+		}
+
+		req := whatsmeow.ReqCreateGroup{
+			Name:         t.Name,
+			Participants: participantJIDs,
+		}
+
+		groupInfo, err := clientPointer[userid].CreateGroup(r.Context(), req)
+
+		if err != nil {
+			log.Error().Str("error", fmt.Sprintf("%v", err)).Msg("Failed to create group")
+			msg := fmt.Sprintf("Failed to create group: %v", err)
+			s.Respond(w, r, http.StatusInternalServerError, msg)
+			return
+		}
+
+		responseJson, err := json.Marshal(groupInfo)
+
+		if err != nil {
+			s.Respond(w, r, http.StatusInternalServerError, err)
+		} else {
+			s.Respond(w, r, http.StatusOK, string(responseJson))
+		}
+
+		return
+	}
+}
+
+// Set group locked
+func (s *server) SetGroupLocked() http.HandlerFunc {
+
+	type setGroupLockedStruct struct {
+		GroupJID string `json:"groupjid"`
+		Locked   bool   `json:"locked"`
+	}
+
+	return func(w http.ResponseWriter, r *http.Request) {
+
+		txtid := r.Context().Value("userinfo").(Values).Get("Id")
+
+		userid, _ := strconv.Atoi(txtid)
+
+		if clientPointer[userid] == nil {
+			s.Respond(w, r, http.StatusInternalServerError, errors.New("No session"))
+			return
+		}
+
+		decoder := json.NewDecoder(r.Body)
+		var t setGroupLockedStruct
+		err := decoder.Decode(&t)
+		if err != nil {
+			s.Respond(w, r, http.StatusBadRequest, errors.New("Could not decode Payload"))
+			return
+		}
+
+		group, ok := parseJID(t.GroupJID)
+		if !ok {
+			s.Respond(w, r, http.StatusBadRequest, errors.New("Could not parse Group JID"))
+			return
+		}
+
+		err = clientPointer[userid].SetGroupLocked(group, t.Locked)
+
+		if err != nil {
+			log.Error().Str("error", fmt.Sprintf("%v", err)).Msg("Failed to set group locked")
+			msg := fmt.Sprintf("Failed to set group locked: %v", err)
+			s.Respond(w, r, http.StatusInternalServerError, msg)
+			return
+		}
+
+		response := map[string]interface{}{"Details": "Group Locked setting updated successfully"}
+		responseJson, err := json.Marshal(response)
+
+		if err != nil {
+			s.Respond(w, r, http.StatusInternalServerError, err)
+		} else {
+			s.Respond(w, r, http.StatusOK, string(responseJson))
+		}
+
+		return
+	}
+}
+
+// Set disappearing timer (ephemeral messages)
+func (s *server) SetDisappearingTimer() http.HandlerFunc {
+
+	type setDisappearingTimerStruct struct {
+		GroupJID string `json:"groupjid"`
+		Duration string `json:"duration"` // "24h", "7d", "90d", "off"
+	}
+
+	return func(w http.ResponseWriter, r *http.Request) {
+
+		txtid := r.Context().Value("userinfo").(Values).Get("Id")
+
+		userid, _ := strconv.Atoi(txtid)
+
+		if clientPointer[userid] == nil {
+			s.Respond(w, r, http.StatusInternalServerError, errors.New("No session"))
+			return
+		}
+
+		decoder := json.NewDecoder(r.Body)
+		var t setDisappearingTimerStruct
+		err := decoder.Decode(&t)
+		if err != nil {
+			s.Respond(w, r, http.StatusBadRequest, errors.New("Could not decode Payload"))
+			return
+		}
+
+		group, ok := parseJID(t.GroupJID)
+		if !ok {
+			s.Respond(w, r, http.StatusBadRequest, errors.New("Could not parse Group JID"))
+			return
+		}
+
+		if t.Duration == "" {
+			s.Respond(w, r, http.StatusBadRequest, errors.New("Missing Duration in Payload"))
+			return
+		}
+
+		var duration time.Duration
+		switch t.Duration {
+		case "24h":
+			duration = 24 * time.Hour
+		case "7d":
+			duration = 7 * 24 * time.Hour
+		case "90d":
+			duration = 90 * 24 * time.Hour
+		case "off":
+			duration = 0
+		default:
+			s.Respond(w, r, http.StatusBadRequest, errors.New("Invalid duration. Use: 24h, 7d, 90d, or off"))
+			return
+		}
+
+		err = clientPointer[userid].SetDisappearingTimer(group, duration, time.Now())
+
+		if err != nil {
+			log.Error().Str("error", fmt.Sprintf("%v", err)).Msg("Failed to set disappearing timer")
+			msg := fmt.Sprintf("Failed to set disappearing timer: %v", err)
+			s.Respond(w, r, http.StatusInternalServerError, msg)
+			return
+		}
+
+		response := map[string]interface{}{"Details": "Disappearing timer set successfully"}
+		responseJson, err := json.Marshal(response)
+
+		if err != nil {
+			s.Respond(w, r, http.StatusInternalServerError, err)
+		} else {
+			s.Respond(w, r, http.StatusOK, string(responseJson))
+		}
+
+		return
+	}
+}
+
+// Remove group photo
+func (s *server) RemoveGroupPhoto() http.HandlerFunc {
+
+	type removeGroupPhotoStruct struct {
+		GroupJID string `json:"groupjid"`
+	}
+
+	return func(w http.ResponseWriter, r *http.Request) {
+
+		txtid := r.Context().Value("userinfo").(Values).Get("Id")
+
+		userid, _ := strconv.Atoi(txtid)
+
+		if clientPointer[userid] == nil {
+			s.Respond(w, r, http.StatusInternalServerError, errors.New("No session"))
+			return
+		}
+
+		decoder := json.NewDecoder(r.Body)
+		var t removeGroupPhotoStruct
+		err := decoder.Decode(&t)
+		if err != nil {
+			s.Respond(w, r, http.StatusBadRequest, errors.New("Could not decode Payload"))
+			return
+		}
+
+		group, ok := parseJID(t.GroupJID)
+		if !ok {
+			s.Respond(w, r, http.StatusBadRequest, errors.New("Could not parse Group JID"))
+			return
+		}
+
+		_, err = clientPointer[userid].SetGroupPhoto(group, nil)
+
+		if err != nil {
+			log.Error().Str("error", fmt.Sprintf("%v", err)).Msg("Failed to remove group photo")
+			msg := fmt.Sprintf("Failed to remove group photo: %v", err)
+			s.Respond(w, r, http.StatusInternalServerError, msg)
+			return
+		}
+
+		response := map[string]interface{}{"Details": "Group Photo removed successfully"}
+		responseJson, err := json.Marshal(response)
+
+		if err != nil {
+			s.Respond(w, r, http.StatusInternalServerError, err)
+		} else {
+			s.Respond(w, r, http.StatusOK, string(responseJson))
+		}
+
 		return
 	}
 }
@@ -3355,15 +4092,16 @@ func (s *server) ListNewsletter() http.HandlerFunc {
 // Admin List users
 func (s *server) ListUsers() http.HandlerFunc {
 	type usersStruct struct {
-		Id         int           `db:"id"`
-		Name       string        `db:"name"`
-		Token      string        `db:"token"`
-		Webhook    string        `db:"webhook"`
-		Jid        string        `db:"jid"`
-		Qrcode     string        `db:"qrcode"`
-		Connected  sql.NullBool  `db:"connected"`
-		Expiration sql.NullInt64 `db:"expiration"`
-		Events     string        `db:"events"`
+		Id         int            `db:"id"`
+		Name       string         `db:"name"`
+		Token      string         `db:"token"`
+		Webhook    string         `db:"webhook"`
+		Jid        string         `db:"jid"`
+		Qrcode     string         `db:"qrcode"`
+		Connected  sql.NullBool   `db:"connected"`
+		Expiration sql.NullInt64  `db:"expiration"`
+		Events     string         `db:"events"`
+		ProxyURL   sql.NullString `db:"proxy_url"`
 	}
 
 	type instanceResponse struct {
@@ -3376,6 +4114,7 @@ func (s *server) ListUsers() http.HandlerFunc {
 		Jid        string `json:"jid"`
 		Events     string `json:"events"`
 		Expiration int64  `json:"expiration"`
+		ProxyURL   string `json:"proxy_url,omitempty"`
 	}
 
 	return func(w http.ResponseWriter, r *http.Request) {
@@ -3393,7 +4132,7 @@ func (s *server) ListUsers() http.HandlerFunc {
 		}
 
 		var users []usersStruct
-		err := s.db.Select(&users, "SELECT id, name, token, webhook, jid, qrcode, connected, expiration, events FROM users ORDER BY id")
+		err := s.db.Select(&users, "SELECT id, name, token, webhook, jid, qrcode, connected, expiration, events, proxy_url FROM users ORDER BY id")
 		if err != nil {
 			log.Error().Err(err).Msg("Erro ao buscar usuários no banco de dados")
 			w.Header().Set("Content-Type", "application/json")
@@ -3423,6 +4162,7 @@ func (s *server) ListUsers() http.HandlerFunc {
 				Jid:        user.Jid,
 				Events:     user.Events,
 				Expiration: user.Expiration.Int64,
+				ProxyURL:   user.ProxyURL.String,
 			}
 			if !user.Connected.Bool {
 				instance.QRCode = user.Qrcode
@@ -3455,6 +4195,7 @@ func (s *server) AddUser() http.HandlerFunc {
 			Webhook    string `json:"webhook"`
 			Expiration int    `json:"expiration"`
 			Events     string `json:"events"`
+			ProxyURL   string `json:"proxy_url"`
 		}
 		if err := json.NewDecoder(r.Body).Decode(&user); err != nil {
 			s.Respond(w, r, http.StatusBadRequest, errors.New("Incomplete data in Payload. Required name, token, webhook, expiration, events"))
@@ -3474,11 +4215,10 @@ func (s *server) AddUser() http.HandlerFunc {
 		}
 
 		// Validate the events input
-		validEvents := []string{"Message", "ReadReceipt", "Presence", "HistorySync", "ChatPresence", "All"}
 		eventList := strings.Split(user.Events, ",")
 		for _, event := range eventList {
 			event = strings.TrimSpace(event)
-			if !Find(validEvents, event) {
+			if !isValidEventType(event) {
 				s.Respond(w, r, http.StatusBadRequest, errors.New("Invalid event: "+event))
 				return
 			}
@@ -3487,8 +4227,8 @@ func (s *server) AddUser() http.HandlerFunc {
 		// Insert the user into the database
 		var id int
 		err = s.db.QueryRowx(
-			"INSERT INTO users (name, token, webhook, expiration, events, jid, qrcode) VALUES ($1, $2, $3, $4, $5, $6, $7) RETURNING id",
-			user.Name, user.Token, user.Webhook, user.Expiration, user.Events, "", "",
+			"INSERT INTO users (name, token, webhook, expiration, events, jid, qrcode, proxy_url) VALUES ($1, $2, $3, $4, $5, $6, $7, $8) RETURNING id",
+			user.Name, user.Token, user.Webhook, user.Expiration, user.Events, "", "", user.ProxyURL,
 		).Scan(&id)
 		if err != nil {
 			s.Respond(w, r, http.StatusInternalServerError, errors.New("Problem accessing DB"))
@@ -3607,6 +4347,8 @@ func (s *server) SetProxy() http.HandlerFunc {
 		txtid := r.Context().Value("userinfo").(Values).Get("Id")
 		userid, _ := strconv.Atoi(txtid)
 
+		log.Info().Str("txtid", txtid).Int("userid", userid).Msg("SetProxy: User ID extracted")
+
 		// Check if client exists and is connected
 		if clientPointer[userid] != nil && clientPointer[userid].IsConnected() {
 			s.Respond(w, r, http.StatusBadRequest, errors.New("cannot set proxy while connected. Please disconnect first"))
@@ -3640,29 +4382,39 @@ func (s *server) SetProxy() http.HandlerFunc {
 		}
 
 		// Validate proxy URL
+		log.Info().Str("proxy_url", t.ProxyURL).Bool("enable", t.Enable).Msg("SetProxy: Validating proxy URL")
 		if t.ProxyURL == "" {
+			log.Warn().Msg("SetProxy: Missing proxy_url in payload")
 			s.Respond(w, r, http.StatusBadRequest, errors.New("missing proxy_url in payload"))
 			return
 		}
 
 		proxyURL, err := url.Parse(t.ProxyURL)
 		if err != nil {
+			log.Error().Err(err).Str("proxy_url", t.ProxyURL).Msg("SetProxy: Invalid proxy URL format")
 			s.Respond(w, r, http.StatusBadRequest, errors.New("invalid proxy URL format"))
 			return
 		}
 
+		log.Info().Str("scheme", proxyURL.Scheme).Msg("SetProxy: Parsed proxy URL scheme")
 		// Only allow http and socks5 proxies
 		if proxyURL.Scheme != "http" && proxyURL.Scheme != "socks5" {
+			log.Warn().Str("scheme", proxyURL.Scheme).Msg("SetProxy: Unsupported proxy scheme")
 			s.Respond(w, r, http.StatusBadRequest, errors.New("only HTTP and SOCKS5 proxies are supported"))
 			return
 		}
 
 		// Store proxy configuration in database
-		_, err = s.db.Exec("UPDATE users SET proxy_url = $1 WHERE id = $2", t.ProxyURL, userid)
+		log.Info().Str("proxy_url", t.ProxyURL).Int("userid", userid).Msg("SetProxy: Saving proxy to database")
+		result, err := s.db.Exec("UPDATE users SET proxy_url = $1 WHERE id = $2", t.ProxyURL, userid)
 		if err != nil {
+			log.Error().Err(err).Msg("SetProxy: Failed to save proxy configuration")
 			s.Respond(w, r, http.StatusInternalServerError, errors.New("failed to save proxy configuration"))
 			return
 		}
+
+		rowsAffected, _ := result.RowsAffected()
+		log.Info().Int64("rows_affected", rowsAffected).Msg("SetProxy: Database update result")
 
 		response := map[string]interface{}{
 			"Details":  "Proxy configured successfully",
@@ -3728,6 +4480,7 @@ func (s *server) EditUser() http.HandlerFunc {
 			Webhook    string `json:"webhook"`
 			Expiration int    `json:"expiration"`
 			Events     string `json:"events"`
+			ProxyURL   string `json:"proxy_url"`
 		}
 		if err := json.NewDecoder(r.Body).Decode(&user); err != nil {
 			s.Respond(w, r, http.StatusBadRequest, errors.New("Incomplete data in Payload. Required name, token, webhook, expiration, events"))
@@ -3747,11 +4500,10 @@ func (s *server) EditUser() http.HandlerFunc {
 		}
 
 		// Validate the events input
-		validEvents := []string{"Message", "ReadReceipt", "Presence", "HistorySync", "ChatPresence", "All"}
 		eventList := strings.Split(user.Events, ",")
 		for _, event := range eventList {
 			event = strings.TrimSpace(event)
-			if !Find(validEvents, event) {
+			if !isValidEventType(event) {
 				s.Respond(w, r, http.StatusBadRequest, errors.New("Invalid event: "+event))
 				return
 			}
@@ -3759,8 +4511,8 @@ func (s *server) EditUser() http.HandlerFunc {
 
 		// Update the user in the database
 		result, err := s.db.Exec(
-			"UPDATE users SET name = $1, token = $2, webhook = $3, expiration = $4, events = $5 WHERE id = $6",
-			user.Name, user.Token, user.Webhook, user.Expiration, user.Events, userID,
+			"UPDATE users SET name = $1, token = $2, webhook = $3, expiration = $4, events = $5, proxy_url = $6 WHERE id = $7",
+			user.Name, user.Token, user.Webhook, user.Expiration, user.Events, user.ProxyURL, userID,
 		)
 		if err != nil {
 			s.Respond(w, r, http.StatusInternalServerError, errors.New("Problem accessing DB"))

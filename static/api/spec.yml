@@ -97,9 +97,47 @@ paths:
 
         * Message
         * ReadReceipt
-        * Presence
         * HistorySync
         * ChatPresence
+        * AppStateSyncComplete
+        * Connected
+        * PushNameSetting
+        * PairSuccess
+        * StreamReplaced
+        * Receipt
+        * Presence
+        * AppState
+        * LoggedOut
+        * CallOffer
+        * CallAccept
+        * CallTerminate
+        * CallOfferNotice
+        * CallRelayLatency
+        * Disconnected
+        * ConnectFailure
+        * UndecryptableMessage
+        * MediaRetry
+        * GroupInfo
+        * JoinedGroup
+        * Picture
+        * BlocklistChange
+        * Blocklist
+        * KeepAliveRestored
+        * KeepAliveTimeout
+        * ClientOutdated
+        * TemporaryBan
+        * StreamError
+        * PairError
+        * PrivacySettings
+        * UserAbout
+        * OfflineSyncCompleted
+        * OfflineSyncPreview
+        * IdentityChange
+        * NewsletterJoin
+        * NewsletterLeave
+        * NewsletterMuteChange
+        * NewsletterLiveUpdate
+        * FBMessage
         * All (subscribes to all event types)
       security:
         - ApiKeyAuth: []
@@ -124,9 +162,47 @@ paths:
 
         * Message
         * ReadReceipt
-        * Presence
         * HistorySync
         * ChatPresence
+        * AppStateSyncComplete
+        * Connected
+        * PushNameSetting
+        * PairSuccess
+        * StreamReplaced
+        * Receipt
+        * Presence
+        * AppState
+        * LoggedOut
+        * CallOffer
+        * CallAccept
+        * CallTerminate
+        * CallOfferNotice
+        * CallRelayLatency
+        * Disconnected
+        * ConnectFailure
+        * UndecryptableMessage
+        * MediaRetry
+        * GroupInfo
+        * JoinedGroup
+        * Picture
+        * BlocklistChange
+        * Blocklist
+        * KeepAliveRestored
+        * KeepAliveTimeout
+        * ClientOutdated
+        * TemporaryBan
+        * StreamError
+        * PairError
+        * PrivacySettings
+        * UserAbout
+        * OfflineSyncCompleted
+        * OfflineSyncPreview
+        * IdentityChange
+        * NewsletterJoin
+        * NewsletterLeave
+        * NewsletterMuteChange
+        * NewsletterLiveUpdate
+        * FBMessage
         * All (subscribes to all event types)
       security:
         - ApiKeyAuth: []
@@ -171,9 +247,47 @@ paths:
 
         * Message
         * ReadReceipt
-        * Presence
         * HistorySync
         * ChatPresence
+        * AppStateSyncComplete
+        * Connected
+        * PushNameSetting
+        * PairSuccess
+        * StreamReplaced
+        * Receipt
+        * Presence
+        * AppState
+        * LoggedOut
+        * CallOffer
+        * CallAccept
+        * CallTerminate
+        * CallOfferNotice
+        * CallRelayLatency
+        * Disconnected
+        * ConnectFailure
+        * UndecryptableMessage
+        * MediaRetry
+        * GroupInfo
+        * JoinedGroup
+        * Picture
+        * BlocklistChange
+        * Blocklist
+        * KeepAliveRestored
+        * KeepAliveTimeout
+        * ClientOutdated
+        * TemporaryBan
+        * StreamError
+        * PairError
+        * PrivacySettings
+        * UserAbout
+        * OfflineSyncCompleted
+        * OfflineSyncPreview
+        * IdentityChange
+        * NewsletterJoin
+        * NewsletterLeave
+        * NewsletterMuteChange
+        * NewsletterLiveUpdate
+        * FBMessage
         * All (subscribes to all event types)
       security:
         - ApiKeyAuth: []
@@ -904,14 +1018,361 @@ paths:
         - Newsletter
       summary: List subscribed newsletters
       description: Returns complete list of subscribed newsletters
-
+      security:
+        - ApiKeyAuth: []
       responses:
         200:
           description: Response
           content:
             application/json:
               schema:
-                example: {"code": 200, "data": {"Newsletter": [{"id": "120363144038483540@newsletter", "state": {"type": "active" }, "thread_metadata": {"creation_time": "1688746895", "description": {"id": "1689653839450668", "text": "WhatsApp’s official channel. Follow for our latest feature launches, updates, exclusive drops and more.", "update_time": "1689653839450668" }, "invite": "0029Va4K0PZ5a245NkngBA2M", "name": {"id": "1688746895480511", "text": "WhatsApp", "update_time": "1688746895480511" }, "picture": {"direct_path": "/v/t61.24694-24/416962407_970228831134395_8869146381947923973_n.jpg?ccb=11-4&oh=01_Q5AaIRyTfP806JEGJDm0XWU5E-D4LcA-Wj3csSwh1jJTVanC&oe=67D550F1&_nc_sid=5e03e0&_nc_cat=110", "id": "1707950960975554", "type": "IMAGE", "url": "" }, "preview": {"direct_path": "/v/t61.24694-24/416962407_970228831134395_8869146381947923973_n.jpg?stp=dst-jpg_s192x192_tt6&ccb=11-4&oh=01_Q5AaIawuPXJUw9grRFJZtAJEc6QNm0XpqJq4X1Ssi9xNI0Qf&oe=67D550F1&_nc_sid=5e03e0&_nc_cat=110", "id": "1707950960975554", "type": "PREVIEW", "url": "" }, "settings": {"reaction_codes": {"value": "ALL" } }, "subscribers_count": "0", "verification": "verified" }, "viewer_metadata": {"mute": "on", "role": "subscriber" } } ] }, "success": true }
+                example: {"code": 200, "data": {"Newsletter": [{"id": "120363144038483540@newsletter", "state": {"type": "active" }, "thread_metadata": {"creation_time": "1688746895", "description": {"id": "1689653839450668", "text": "WhatsApp's official channel. Follow for our latest feature launches, updates, exclusive drops and more.", "update_time": "1689653839450668" }, "invite": "0029Va4K0PZ5a245NkngBA2M", "name": {"id": "1688746895480511", "text": "WhatsApp", "update_time": "1688746895480511" }, "picture": {"direct_path": "/v/t61.24694-24/416962407_970228831134395_8869146381947923973_n.jpg?ccb=11-4&oh=01_Q5AaIRyTfP806JEGJDm0XWU5E-D4LcA-Wj3csSwh1jJTVanC&oe=67D550F1&_nc_sid=5e03e0&_nc_cat=110", "id": "1707950960975554", "type": "IMAGE", "url": "" }, "preview": {"direct_path": "/v/t61.24694-24/416962407_970228831134395_8869146381947923973_n.jpg?stp=dst-jpg_s192x192_tt6&ccb=11-4&oh=01_Q5AaIawuPXJUw9grRFJZtAJEc6QNm0XpqJq4X1Ssi9xNI0Qf&oe=67D550F1&_nc_sid=5e03e0&_nc_cat=110", "id": "1707950960975554", "type": "PREVIEW", "url": "" }, "settings": {"reaction_codes": {"value": "ALL" } }, "subscribers_count": "0", "verification": "verified" }, "viewer_metadata": {"mute": "on", "role": "subscriber" } } ] }, "success": true }
+
+  /api/validate-token:
+    get:
+      tags:
+        - API Utilities
+      summary: Validate token
+      description: Validates if a token is valid and returns user information
+      security:
+        - ApiKeyAuth: []
+      responses:
+        200:
+          description: Response
+          content:
+            application/json:
+              schema:
+                example: {"code": 200, "data": {"valid": true, "user": {"id": 1, "name": "admin", "token": "1234ABCD"}}, "success": true}
+
+  /chat/send/buttons:
+    post:
+      tags:
+        - Chat
+      summary: Sends a message with interactive buttons
+      description: Sends a message with interactive buttons
+      security:
+        - ApiKeyAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#definitions/MessageButtons'
+      responses:
+        200:
+          description: Response
+          content:
+            application/json:
+              schema:
+                example: {"code":200,"data":{"Details":"Sent","Id":"90B2F8B13FAC8A9CF6B06E99C7834DC5","Timestamp":"2022-04-20T12:49:08-03:00"},"success":true}
+
+  /chat/send/list:
+    post:
+      tags:
+        - Chat
+      summary: Sends a message with a list of options
+      description: Sends a message with a list of options
+      security:
+        - ApiKeyAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#definitions/MessageList'
+      responses:
+        200:
+          description: Response
+          content:
+            application/json:
+              schema:
+                example: {"code":200,"data":{"Details":"Sent","Id":"90B2F8B13FAC8A9CF6B06E99C7834DC5","Timestamp":"2022-04-20T12:49:08-03:00"},"success":true}
+
+  /chat/send/poll:
+    post:
+      tags:
+        - Chat
+      summary: Sends a poll message
+      description: Sends a poll message
+      security:
+        - ApiKeyAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#definitions/MessagePoll'
+      responses:
+        200:
+          description: Response
+          content:
+            application/json:
+              schema:
+                example: {"code":200,"data":{"Details":"Sent","Id":"90B2F8B13FAC8A9CF6B06E99C7834DC5","Timestamp":"2022-04-20T12:49:08-03:00"},"success":true}
+
+  /chat/edit:
+    post:
+      tags:
+        - Chat
+      summary: Edits an existing message
+      description: Edits an existing message
+      security:
+        - ApiKeyAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#definitions/MessageEdit'
+      responses:
+        200:
+          description: Response
+          content:
+            application/json:
+              schema:
+                example: {"code":200,"data":{"Details":"Message edited successfully","Id":"90B2F8B13FAC8A9CF6B06E99C7834DC5","Timestamp":"2022-04-20T12:49:08-03:00"},"success":true}
+
+  /chat/revoke:
+    post:
+      tags:
+        - Chat
+      summary: Revokes (deletes) a message for everyone
+      description: Revokes (deletes) a message for everyone
+      security:
+        - ApiKeyAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#definitions/MessageRevoke'
+      responses:
+        200:
+          description: Response
+          content:
+            application/json:
+              schema:
+                example: {"code":200,"data":{"Details":"Message revoked successfully","Id":"90B2F8B13FAC8A9CF6B06E99C7834DC5","Timestamp":"2022-04-20T12:49:08-03:00"},"success":true}
+
+  /group/create:
+    post:
+      tags:
+        - Group
+      summary: Creates a new WhatsApp group
+      description: Creates a new WhatsApp group
+      security:
+        - ApiKeyAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#definitions/GroupCreate'
+      responses:
+        200:
+          description: Response
+          content:
+            application/json:
+              schema:
+                example: {"code":200,"data":{"Details":"Group created successfully","GroupJID":"120362023605733675@g.us"},"success":true}
+
+  /group/photo/remove:
+    post:
+      tags:
+        - Group
+      summary: Removes the group photo
+      description: Removes the group photo
+      security:
+        - ApiKeyAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#definitions/GroupPhotoRemove'
+      responses:
+        200:
+          description: Response
+          content:
+            application/json:
+              schema:
+                example: {"code":200,"data":{"Details":"Group photo removed successfully"},"success":true}
+
+  /group/leave:
+    post:
+      tags:
+        - Group
+      summary: Leaves a group
+      description: Leaves a group
+      security:
+        - ApiKeyAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#definitions/GroupLeave'
+      responses:
+        200:
+          description: Response
+          content:
+            application/json:
+              schema:
+                example: {"code":200,"data":{"Details":"Left group successfully"},"success":true}
+
+  /group/topic:
+    post:
+      tags:
+        - Group
+      summary: Sets or changes the group topic/description
+      description: Sets or changes the group topic/description
+      security:
+        - ApiKeyAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#definitions/GroupTopic'
+      responses:
+        200:
+          description: Response
+          content:
+            application/json:
+              schema:
+                example: {"code":200,"data":{"Details":"Group topic set successfully"},"success":true}
+
+  /group/announce:
+    post:
+      tags:
+        - Group
+      summary: Sets group announcement settings
+      description: Sets group announcement settings
+      security:
+        - ApiKeyAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#definitions/GroupAnnounce'
+      responses:
+        200:
+          description: Response
+          content:
+            application/json:
+              schema:
+                example: {"code":200,"data":{"Details":"Group announcement settings updated"},"success":true}
+
+  /group/locked:
+    post:
+      tags:
+        - Group
+      summary: Sets group locked status
+      description: Sets group locked status
+      security:
+        - ApiKeyAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#definitions/GroupLocked'
+      responses:
+        200:
+          description: Response
+          content:
+            application/json:
+              schema:
+                example: {"code":200,"data":{"Details":"Group locked status updated"},"success":true}
+
+  /group/ephemeral:
+    post:
+      tags:
+        - Group
+      summary: Sets disappearing messages timer for the group
+      description: Sets disappearing messages timer for the group
+      security:
+        - ApiKeyAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#definitions/GroupEphemeral'
+      responses:
+        200:
+          description: Response
+          content:
+            application/json:
+              schema:
+                example: {"code":200,"data":{"Details":"Disappearing timer set successfully"},"success":true}
+
+  /group/join:
+    post:
+      tags:
+        - Group
+      summary: Joins a group using an invite link
+      description: Joins a group using an invite link
+      security:
+        - ApiKeyAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#definitions/GroupJoin'
+      responses:
+        200:
+          description: Response
+          content:
+            application/json:
+              schema:
+                example: {"code":200,"data":{"Details":"Joined group successfully","GroupJID":"120362023605733675@g.us"},"success":true}
+
+  /group/inviteinfo:
+    post:
+      tags:
+        - Group
+      summary: Gets information about a group invite link
+      description: Gets information about a group invite link
+      security:
+        - ApiKeyAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#definitions/GroupInviteInfo'
+      responses:
+        200:
+          description: Response
+          content:
+            application/json:
+              schema:
+                example: {"code":200,"data":{"GroupJID":"120362023605733675@g.us","Name":"Super Group","Participants":3},"success":true}
+
+  /group/updateparticipants:
+    post:
+      tags:
+        - Group
+      summary: Adds or removes participants from a group
+      description: Adds or removes participants from a group
+      security:
+        - ApiKeyAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#definitions/GroupUpdateParticipants'
+      responses:
+        200:
+          description: Response
+          content:
+            application/json:
+              schema:
+                example: {"code":200,"data":{"Details":"Participants updated successfully"},"success":true}
 
 
 definitions:
@@ -1401,7 +1862,7 @@ definitions:
         items:
           type: string
         description: List of events to subscribe to
-        example: ["Message", "ReadReceipt"]
+        example: ["Message", "ReadReceipt", "Presence", "Connected", "Disconnected"]
 
   WebhookUpdate:
     type: object
@@ -1415,11 +1876,257 @@ definitions:
         items:
           type: string
         description: List of events to subscribe to
-        example: ["Message", "ReadReceipt"]
+        example: ["Message", "ReadReceipt", "Presence", "Connected", "Disconnected"]
       Active:
         type: boolean
         description: Whether the webhook should be active or not
         example: true
+
+  MessageButtons:
+    type: object
+    required:
+      - Phone
+      - Body
+      - Buttons
+    properties:
+      Phone:
+        type: string
+        example: "5491155553935"
+      Body:
+        type: string
+        example: "Choose an option"
+      Buttons:
+        type: array
+        items:
+          type: object
+          properties:
+            DisplayText:
+              type: string
+              example: "Option 1"
+            Id:
+              type: string
+              example: "btn1"
+      Id:
+        type: string
+        example: "ABCDABCD1234"
+
+  MessageList:
+    type: object
+    required:
+      - Phone
+      - Body
+      - ButtonText
+      - Sections
+    properties:
+      Phone:
+        type: string
+        example: "5491155553935"
+      Body:
+        type: string
+        example: "Select an item"
+      ButtonText:
+        type: string
+        example: "View List"
+      Sections:
+        type: array
+        items:
+          type: object
+          properties:
+            Title:
+              type: string
+              example: "Section 1"
+            Rows:
+              type: array
+              items:
+                type: object
+                properties:
+                  Id:
+                    type: string
+                    example: "1"
+                  Title:
+                    type: string
+                    example: "Item 1"
+                  Description:
+                    type: string
+                    example: "Description 1"
+      Id:
+        type: string
+        example: "ABCDABCD1234"
+
+  MessagePoll:
+    type: object
+    required:
+      - Phone
+      - Name
+      - Options
+    properties:
+      Phone:
+        type: string
+        example: "5491155553935"
+      Name:
+        type: string
+        example: "Poll Question"
+      Options:
+        type: array
+        items:
+          type: string
+        example: ["Option 1", "Option 2", "Option 3"]
+      Id:
+        type: string
+        example: "ABCDABCD1234"
+
+  MessageEdit:
+    type: object
+    required:
+      - Phone
+      - MessageId
+      - NewText
+    properties:
+      Phone:
+        type: string
+        example: "5491155553935"
+      MessageId:
+        type: string
+        example: "AA3DSE28UDJES3"
+      NewText:
+        type: string
+        example: "Edited message"
+
+  MessageRevoke:
+    type: object
+    required:
+      - Phone
+      - MessageId
+    properties:
+      Phone:
+        type: string
+        example: "5491155553935"
+      MessageId:
+        type: string
+        example: "AA3DSE28UDJES3"
+
+  GroupCreate:
+    type: object
+    required:
+      - Name
+      - Participants
+    properties:
+      Name:
+        type: string
+        example: "My New Group"
+      Participants:
+        type: array
+        items:
+          type: string
+        example: ["5491155554444@s.whatsapp.net", "5491155553333@s.whatsapp.net"]
+
+  GroupPhotoRemove:
+    type: object
+    required:
+      - GroupJID
+    properties:
+      GroupJID:
+        type: string
+        example: "120362023605733675@g.us"
+
+  GroupLeave:
+    type: object
+    required:
+      - GroupJID
+    properties:
+      GroupJID:
+        type: string
+        example: "120362023605733675@g.us"
+
+  GroupTopic:
+    type: object
+    required:
+      - GroupJID
+      - Topic
+    properties:
+      GroupJID:
+        type: string
+        example: "120362023605733675@g.us"
+      Topic:
+        type: string
+        example: "New group description"
+
+  GroupAnnounce:
+    type: object
+    required:
+      - GroupJID
+      - IsAnnounce
+    properties:
+      GroupJID:
+        type: string
+        example: "120362023605733675@g.us"
+      IsAnnounce:
+        type: boolean
+        example: true
+
+  GroupLocked:
+    type: object
+    required:
+      - GroupJID
+      - IsLocked
+    properties:
+      GroupJID:
+        type: string
+        example: "120362023605733675@g.us"
+      IsLocked:
+        type: boolean
+        example: true
+
+  GroupEphemeral:
+    type: object
+    required:
+      - GroupJID
+      - DisappearingTimer
+    properties:
+      GroupJID:
+        type: string
+        example: "120362023605733675@g.us"
+      DisappearingTimer:
+        type: integer
+        example: 86400
+
+  GroupJoin:
+    type: object
+    required:
+      - InviteLink
+    properties:
+      InviteLink:
+        type: string
+        example: "https://chat.whatsapp.com/HffXhYmzzyJGec61oqMXiz"
+
+  GroupInviteInfo:
+    type: object
+    required:
+      - InviteLink
+    properties:
+      InviteLink:
+        type: string
+        example: "https://chat.whatsapp.com/HffXhYmzzyJGec61oqMXiz"
+
+  GroupUpdateParticipants:
+    type: object
+    required:
+      - GroupJID
+      - Action
+      - Participants
+    properties:
+      GroupJID:
+        type: string
+        example: "120362023605733675@g.us"
+      Action:
+        type: string
+        enum: [add, remove]
+        example: "add"
+      Participants:
+        type: array
+        items:
+          type: string
+        example: ["5491155554444@s.whatsapp.net"]
 
 components:
   securitySchemes:

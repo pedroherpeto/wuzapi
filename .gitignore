@@ -6,3 +6,4 @@ frontend/package-lock.json
 .env
 .env.example
 .tool-versions
+meow_gui/

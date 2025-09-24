@@ -97,6 +97,7 @@ func (s *server) routes() {
 	s.router.Handle("/chat/revoke", c.Then(s.Revoke())).Methods("POST")
 	s.router.Handle("/chat/send/buttons", c.Then(s.SendButtons())).Methods("POST")
 	s.router.Handle("/chat/send/list", c.Then(s.SendList())).Methods("POST")
+	s.router.Handle("/chat/send/poll", c.Then(s.SendPoll())).Methods("POST")
 
 	s.router.Handle("/user/info", c.Then(s.GetUser())).Methods("POST")
 	s.router.Handle("/user/check", c.Then(s.CheckUser())).Methods("POST")
@@ -111,10 +112,20 @@ func (s *server) routes() {
 	s.router.Handle("/chat/downloaddocument", c.Then(s.DownloadDocument())).Methods("POST")
 
 	s.router.Handle("/group/list", c.Then(s.ListGroups())).Methods("GET")
+	s.router.Handle("/group/create", c.Then(s.CreateGroup())).Methods("POST")
 	s.router.Handle("/group/info", c.Then(s.GetGroupInfo())).Methods("GET")
 	s.router.Handle("/group/invitelink", c.Then(s.GetGroupInviteLink())).Methods("GET")
 	s.router.Handle("/group/photo", c.Then(s.SetGroupPhoto())).Methods("POST")
+	s.router.Handle("/group/photo/remove", c.Then(s.RemoveGroupPhoto())).Methods("POST")
 	s.router.Handle("/group/name", c.Then(s.SetGroupName())).Methods("POST")
+	s.router.Handle("/group/leave", c.Then(s.GroupLeave())).Methods("POST")
+	s.router.Handle("/group/topic", c.Then(s.SetGroupTopic())).Methods("POST")
+	s.router.Handle("/group/announce", c.Then(s.SetGroupAnnounce())).Methods("POST")
+	s.router.Handle("/group/locked", c.Then(s.SetGroupLocked())).Methods("POST")
+	s.router.Handle("/group/ephemeral", c.Then(s.SetDisappearingTimer())).Methods("POST")
+	s.router.Handle("/group/join", c.Then(s.GroupJoin())).Methods("POST")
+	s.router.Handle("/group/inviteinfo", c.Then(s.GetGroupInviteInfo())).Methods("POST")
+	s.router.Handle("/group/updateparticipants", c.Then(s.UpdateGroupParticipants())).Methods("POST")
 	s.router.Handle("/newsletter/list", c.Then(s.ListNewsletter())).Methods("GET")
 	// s.router.Handle("/newsletters/info", c.Then(s.GetNewsletterInfo())).Methods("GET")
 

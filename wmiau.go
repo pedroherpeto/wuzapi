@@ -3,6 +3,7 @@ package main
 import (
 	"context"
 	"crypto/tls"
+	"database/sql"
 	"encoding/base64"
 	"encoding/json"
 	"errors"
@@ -49,7 +50,8 @@ type MyClient struct {
 
 // Connects to Whatsapp Websocket on server startup if last state was connected
 func (s *server) connectOnStartup() {
-	rows, err := s.db.Queryx("SELECT id,token,jid,webhook,events FROM users WHERE connected=1")
+	// rows, err := s.db.Queryx("SELECT id,token,jid,webhook,events FROM users WHERE connected=1")
+	rows, err := s.db.Queryx("SELECT id,token,jid,webhook,events,proxy_url FROM users WHERE connected=1")
 	if err != nil {
 		log.Error().Err(err).Msg("DB Problem")
 		return
@@ -61,17 +63,23 @@ func (s *server) connectOnStartup() {
 		jid := ""
 		webhook := ""
 		events := ""
-		err = rows.Scan(&txtid, &token, &jid, &webhook, &events)
+		var proxy_url sql.NullString
+		err = rows.Scan(&txtid, &token, &jid, &webhook, &events, &proxy_url)
 		if err != nil {
 			log.Error().Err(err).Msg("DB Problem")
 			return
 		} else {
 			log.Info().Str("token", token).Msg("Connect to Whatsapp on startup")
+			proxyValue := ""
+			if proxy_url.Valid {
+				proxyValue = proxy_url.String
+			}
 			v := Values{map[string]string{
 				"Id":      txtid,
 				"Jid":     jid,
 				"Webhook": webhook,
 				"Token":   token,
+				"Proxy":   proxyValue,
 				"Events":  events,
 			}}
 			userinfocache.Set(token, v, cache.NoExpiration)
@@ -86,7 +94,7 @@ func (s *server) connectOnStartup() {
 				}
 			} else {
 				for _, arg := range eventarray {
-					if !Find(messageTypes, arg) {
+					if !isValidEventType(arg) {
 						log.Warn().Str("Type", arg).Msg("Message type discarded")
 						continue
 					}
@@ -269,7 +277,7 @@ func (s *server) startClient(userID int, textjid string, token string, subscript
 			log.Info().Str("userid", strconv.Itoa(userID)).Msg("Received kill signal")
 			client.Disconnect()
 			delete(clientPointer, userID)
-			sqlStmt := `UPDATE users SET qrcode=$1 connected=0 WHERE id=$1`
+			sqlStmt := `UPDATE users SET qrcode=$1, connected=0 WHERE id=$2`
 			_, err := s.db.Exec(sqlStmt, "", userID)
 			if err != nil {
 				log.Error().Err(err).Msg(sqlStmt)
@@ -324,6 +332,8 @@ func (mycli *MyClient) myEventHandler(rawEvt interface{}) {
 
 	switch evt := rawEvt.(type) {
 	case *events.AppStateSyncComplete:
+		postmap["type"] = "AppStateSyncComplete"
+		dowebhook = 1
 		if len(mycli.WAClient.Store.PushName) > 0 && evt.Name == appstate.WAPatchCriticalBlock {
 			err := mycli.WAClient.SendPresence(types.PresenceAvailable)
 			if err != nil {
@@ -332,9 +342,12 @@ func (mycli *MyClient) myEventHandler(rawEvt interface{}) {
 				log.Info().Msg("Marked self as available")
 			}
 		}
-	case *events.Connected, *events.PushNameSetting:
+		log.Info().Str("name", fmt.Sprintf("%v", evt.Name)).Msg("App state sync complete")
+	case *events.Connected:
+		postmap["type"] = "Connected"
+		dowebhook = 1
 		if len(mycli.WAClient.Store.PushName) == 0 {
-			return
+			break
 		}
 		// Send presence available when connecting and when the pushname is changed.
 		// This makes sure that outgoing messages always have the right pushname.
@@ -350,7 +363,20 @@ func (mycli *MyClient) myEventHandler(rawEvt interface{}) {
 			log.Error().Err(err).Msg(sqlStmt)
 			return
 		}
+	case *events.PushNameSetting:
+		postmap["type"] = "PushNameSetting"
+		dowebhook = 1
+		// Send presence available when connecting and when the pushname is changed.
+		// This makes sure that outgoing messages always have the right pushname.
+		err := mycli.WAClient.SendPresence(types.PresenceAvailable)
+		if err != nil {
+			log.Warn().Err(err).Msg("Failed to send available presence")
+		} else {
+			log.Info().Msg("Marked self as available")
+		}
 	case *events.PairSuccess:
+		postmap["type"] = "PairSuccess"
+		dowebhook = 1
 		log.Info().Str("userid", strconv.Itoa(mycli.userID)).Str("token", mycli.token).Str("ID", evt.ID.String()).Str("BusinessName", evt.BusinessName).Str("Platform", evt.Platform).Msg("QR Pair Success")
 		jid := evt.ID
 		sqlStmt := `UPDATE users SET jid=$1 WHERE id=$2`
@@ -371,8 +397,9 @@ func (mycli *MyClient) myEventHandler(rawEvt interface{}) {
 			log.Info().Str("jid", jid.String()).Str("userid", txtid).Str("token", token).Msg("User information set")
 		}
 	case *events.StreamReplaced:
+		postmap["type"] = "StreamReplaced"
+		dowebhook = 1
 		log.Info().Msg("Received StreamReplaced event")
-		return
 	case *events.Message:
 		postmap["type"] = "Message"
 		dowebhook = 1
@@ -624,30 +651,145 @@ func (mycli *MyClient) myEventHandler(rawEvt interface{}) {
 		log.Info().Str("filename", fileName).Msg("Wrote history sync")
 		_ = file.Close()
 	case *events.AppState:
+		postmap["type"] = "AppState"
+		dowebhook = 1
 		log.Info().Str("index", fmt.Sprintf("%+v", evt.Index)).Str("actionValue", fmt.Sprintf("%+v", evt.SyncActionValue)).Msg("App state event received")
 	case *events.LoggedOut:
+		postmap["type"] = "LoggedOut"
+		dowebhook = 1
 		log.Info().Str("reason", evt.Reason.String()).Msg("Logged out")
+		log.Info().Str("userid", strconv.Itoa(mycli.userID)).Str("token", mycli.token).Msg("LOGOUT EVENT - Sending webhook")
 		killchannel[mycli.userID] <- true
 		sqlStmt := `UPDATE users SET connected=0 WHERE id=$1`
 		_, err := mycli.db.Exec(sqlStmt, mycli.userID)
 		if err != nil {
 			log.Error().Err(err).Msg(sqlStmt)
-			return
 		}
 	case *events.ChatPresence:
 		postmap["type"] = "ChatPresence"
 		dowebhook = 1
 		log.Info().Str("state", fmt.Sprintf("%s", evt.State)).Str("media", fmt.Sprintf("%s", evt.Media)).Str("chat", evt.MessageSource.Chat.String()).Str("sender", evt.MessageSource.Sender.String()).Msg("Chat Presence received")
 	case *events.CallOffer:
+		postmap["type"] = "CallOffer"
+		dowebhook = 1
 		log.Info().Str("event", fmt.Sprintf("%+v", evt)).Msg("Got call offer")
 	case *events.CallAccept:
+		postmap["type"] = "CallAccept"
+		dowebhook = 1
 		log.Info().Str("event", fmt.Sprintf("%+v", evt)).Msg("Got call accept")
 	case *events.CallTerminate:
+		postmap["type"] = "CallTerminate"
+		dowebhook = 1
 		log.Info().Str("event", fmt.Sprintf("%+v", evt)).Msg("Got call terminate")
 	case *events.CallOfferNotice:
+		postmap["type"] = "CallOfferNotice"
+		dowebhook = 1
 		log.Info().Str("event", fmt.Sprintf("%+v", evt)).Msg("Got call offer notice")
 	case *events.CallRelayLatency:
+		postmap["type"] = "CallRelayLatency"
+		dowebhook = 1
 		log.Info().Str("event", fmt.Sprintf("%+v", evt)).Msg("Got call relay latency")
+	case *events.Disconnected:
+		postmap["type"] = "Disconnected"
+		dowebhook = 1
+		log.Info().Str("reason", fmt.Sprintf("%+v", evt)).Msg("Disconnected from Whatsapp")
+		log.Info().Str("userid", strconv.Itoa(mycli.userID)).Str("token", mycli.token).Msg("DISCONNECTED EVENT - Sending webhook")
+	case *events.ConnectFailure:
+		postmap["type"] = "ConnectFailure"
+		dowebhook = 1
+		log.Error().Str("reason", fmt.Sprintf("%+v", evt)).Msg("Failed to connect to Whatsapp")
+	case *events.UndecryptableMessage:
+		postmap["type"] = "UndecryptableMessage"
+		dowebhook = 1
+		log.Info().Str("info", evt.Info.SourceString()).Msg("Undecryptable message received")
+	case *events.MediaRetry:
+		postmap["type"] = "MediaRetry"
+		dowebhook = 1
+		log.Info().Str("messageID", evt.MessageID).Msg("Media retry event")
+	case *events.GroupInfo:
+		postmap["type"] = "GroupInfo"
+		dowebhook = 1
+		log.Info().Str("jid", evt.JID.String()).Msg("Group info updated")
+	case *events.JoinedGroup:
+		postmap["type"] = "JoinedGroup"
+		dowebhook = 1
+		log.Info().Str("jid", evt.JID.String()).Msg("Joined group")
+	case *events.Picture:
+		postmap["type"] = "Picture"
+		dowebhook = 1
+		log.Info().Str("jid", evt.JID.String()).Msg("Picture updated")
+	case *events.BlocklistChange:
+		postmap["type"] = "BlocklistChange"
+		dowebhook = 1
+		log.Info().Str("jid", evt.JID.String()).Msg("Blocklist changed")
+	case *events.Blocklist:
+		postmap["type"] = "Blocklist"
+		dowebhook = 1
+		log.Info().Msg("Blocklist received")
+	case *events.KeepAliveRestored:
+		postmap["type"] = "KeepAliveRestored"
+		dowebhook = 1
+		log.Info().Msg("Keep alive restored")
+	case *events.KeepAliveTimeout:
+		postmap["type"] = "KeepAliveTimeout"
+		dowebhook = 1
+		log.Info().Msg("Keep alive timeout")
+	case *events.ClientOutdated:
+		postmap["type"] = "ClientOutdated"
+		dowebhook = 1
+		log.Info().Msg("Client outdated")
+	case *events.TemporaryBan:
+		postmap["type"] = "TemporaryBan"
+		dowebhook = 1
+		log.Info().Msg("Temporary ban")
+	case *events.StreamError:
+		postmap["type"] = "StreamError"
+		dowebhook = 1
+		log.Error().Str("code", evt.Code).Msg("Stream error")
+	case *events.PairError:
+		postmap["type"] = "PairError"
+		dowebhook = 1
+		log.Error().Msg("Pair error")
+	case *events.PrivacySettings:
+		postmap["type"] = "PrivacySettings"
+		dowebhook = 1
+		log.Info().Msg("Privacy settings updated")
+	case *events.UserAbout:
+		postmap["type"] = "UserAbout"
+		dowebhook = 1
+		log.Info().Str("jid", evt.JID.String()).Msg("User about updated")
+	case *events.OfflineSyncCompleted:
+		postmap["type"] = "OfflineSyncCompleted"
+		dowebhook = 1
+		log.Info().Msg("Offline sync completed")
+	case *events.OfflineSyncPreview:
+		postmap["type"] = "OfflineSyncPreview"
+		dowebhook = 1
+		log.Info().Msg("Offline sync preview")
+	case *events.IdentityChange:
+		postmap["type"] = "IdentityChange"
+		dowebhook = 1
+		log.Info().Str("jid", evt.JID.String()).Msg("Identity changed")
+	case *events.NewsletterJoin:
+		postmap["type"] = "NewsletterJoin"
+		dowebhook = 1
+		log.Info().Str("jid", evt.ID.String()).Msg("Newsletter joined")
+	case *events.NewsletterLeave:
+		postmap["type"] = "NewsletterLeave"
+		dowebhook = 1
+		log.Info().Str("jid", evt.ID.String()).Msg("Newsletter left")
+	case *events.NewsletterMuteChange:
+		postmap["type"] = "NewsletterMuteChange"
+		dowebhook = 1
+		log.Info().Str("jid", evt.ID.String()).Msg("Newsletter mute changed")
+	case *events.NewsletterLiveUpdate:
+		postmap["type"] = "NewsletterLiveUpdate"
+		dowebhook = 1
+		log.Info().Msg("Newsletter live update")
+	case *events.FBMessage:
+		postmap["type"] = "FBMessage"
+		dowebhook = 1
+		log.Info().Str("info", evt.Info.SourceString()).Msg("Facebook message received")
 	default:
 		log.Warn().Str("event", fmt.Sprintf("%+v", evt)).Msg("Unhandled event")
 	}
@@ -662,13 +804,16 @@ func (mycli *MyClient) myEventHandler(rawEvt interface{}) {
 			webhookurl = myuserinfo.(Values).Get("Webhook")
 		}
 
-		if !Find(mycli.subscriptions, postmap["type"].(string)) && !Find(mycli.subscriptions, "All") {
-			log.Warn().Str("type", postmap["type"].(string)).Msg("Skipping webhook. Not subscribed for this type")
+		eventType := postmap["type"].(string)
+		log.Info().Str("eventType", eventType).Str("userid", strconv.Itoa(mycli.userID)).Msg("WEBHOOK CHECK - Event type being processed")
+
+		if !Find(mycli.subscriptions, eventType) && !Find(mycli.subscriptions, "All") {
+			log.Warn().Str("type", eventType).Msg("Skipping webhook. Not subscribed for this type")
 			return
 		}
 
 		if webhookurl != "" {
-			log.Info().Str("url", webhookurl).Msg("Calling webhook")
+			log.Info().Str("url", webhookurl).Str("eventType", eventType).Msg("Calling webhook")
 			filteredPostmap := filterBase64Data(postmap)
 			jsonData, err := json.Marshal(filteredPostmap)
 			// jsonData, err := json.Marshal(postmap)

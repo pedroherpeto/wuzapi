@@ -14,7 +14,7 @@ require (
 	github.com/rs/zerolog v1.34.0
 	github.com/skip2/go-qrcode v0.0.0-20200617195104-da1b6568686e
 	github.com/vincent-petithory/dataurl v1.0.0
-	go.mau.fi/whatsmeow v0.0.0-20250919124702-c8bdfd36d05e
+	go.mau.fi/whatsmeow v0.0.0-20250922112717-258fd9454b95
 	google.golang.org/protobuf v1.36.9
 )
 

@@ -1,5 +1,6 @@
 import React, { useEffect, useState } from 'react';
 import { v4 as uuidv4 } from 'uuid';
+import { SUPPORTED_EVENT_TYPES, EVENT_TYPE_LABELS } from '../constants/eventTypes';
 import {
   Box,
   Paper,
@@ -38,6 +39,7 @@ import {
   Logout as LogoutIcon,
   Edit as EditIcon,
   WhatsApp as WhatsAppIcon,
+  Settings as SettingsIcon,
 } from '@mui/icons-material';
 import axios from 'axios';
 
@@ -52,6 +54,7 @@ interface Instance {
   jid: string;
   events: string[];
   expiration: number;
+  proxy_url?: string;
 }
 
 // Adicionar nova interface para mensagem
@@ -80,6 +83,9 @@ const Instances: React.FC = () => {
   const [sendingMessage, setSendingMessage] = useState(false);
   const [sendStatus, setSendStatus] = useState<'success' | 'error' | null>(null);
   const [shouldContinueSending, setShouldContinueSending] = useState(true);
+  const [openProxyDialog, setOpenProxyDialog] = useState(false);
+  const [selectedInstanceForProxy, setSelectedInstanceForProxy] = useState<Instance | null>(null);
+  const [proxyUrl, setProxyUrl] = useState('');
   const [message, setMessage] = useState<TextMessage>({
     Phone: '',
     Body: '',
@@ -91,6 +97,7 @@ const Instances: React.FC = () => {
     webhook: '',
     expiration: 0,
     events: ['All'],
+    proxy_url: '',
   });
   const [visibleColumns, setVisibleColumns] = useState({
     id: true,
@@ -356,7 +363,8 @@ const Instances: React.FC = () => {
         token: uuidv4(),
         webhook: '', 
         expiration: 0, 
-        events: ['All'] 
+        events: ['All'],
+        proxy_url: ''
       });
       fetchInstances();
     } catch (error) {
@@ -396,6 +404,30 @@ const Instances: React.FC = () => {
     } else {
       // Se for uma string única (caso do Select não múltiplo)
       return [value];
+    }
+  };
+
+  const handleSetProxy = async (instance: Instance, proxyUrl: string) => {
+    try {
+      const token = localStorage.getItem('token');
+      await axios.post(`${process.env.REACT_APP_API_URL}/session/proxy`, {
+        proxy_url: proxyUrl,
+        enable: proxyUrl !== ''
+      }, {
+        headers: {
+          'Authorization': `Bearer ${token}`,
+          'token': instance.token
+        }
+      });
+      
+      // Atualiza a instância local com o novo proxy
+      setInstances(instances.map(i => 
+        i.id === instance.id ? { ...i, proxy_url: proxyUrl } : i
+      ));
+      
+      console.log('Proxy configurado com sucesso');
+    } catch (error) {
+      console.error('Erro ao configurar proxy:', error);
     }
   };
 
@@ -829,6 +861,20 @@ const Instances: React.FC = () => {
                         <RefreshIcon />
                       </IconButton>
                     </Tooltip>
+                    {!instance.connected && (
+                      <Tooltip title="Configurar Proxy">
+                        <IconButton 
+                          onClick={() => {
+                            setSelectedInstanceForProxy(instance);
+                            setProxyUrl(instance.proxy_url || '');
+                            setOpenProxyDialog(true);
+                          }}
+                          sx={{ color: '#8696a0', '&:hover': { color: '#e9edef' } }}
+                        >
+                          <SettingsIcon />
+                        </IconButton>
+                      </Tooltip>
+                    )}
                     {instance.connected && instance.loggedIn && (
                       <Tooltip title="Enviar Mensagem">
                         <IconButton 
@@ -948,6 +994,31 @@ const Instances: React.FC = () => {
             value={newInstance.expiration}
             onChange={(e) => setNewInstance({ ...newInstance, expiration: parseInt(e.target.value) })}
           />
+          <TextField
+            margin="dense"
+            label="Proxy URL (opcional)"
+            placeholder="Ex: http://proxy:port ou socks5://user:pass@proxy:port"
+            fullWidth
+            value={newInstance.proxy_url}
+            onChange={(e) => setNewInstance({ ...newInstance, proxy_url: e.target.value })}
+            sx={{
+              '& .MuiOutlinedInput-root': {
+                color: '#e9edef',
+                '& fieldset': {
+                  borderColor: '#374045'
+                },
+                '&:hover fieldset': {
+                  borderColor: '#00a884'
+                },
+                '&.Mui-focused fieldset': {
+                  borderColor: '#00a884'
+                }
+              },
+              '& .MuiInputLabel-root': {
+                color: '#8696a0'
+              }
+            }}
+          />
           <FormControl fullWidth margin="dense">
             <InputLabel>Eventos</InputLabel>
             <Select
@@ -957,12 +1028,11 @@ const Instances: React.FC = () => {
               onChange={(e) => setNewInstance({ ...newInstance, events: handleEventsChange(e.target.value) })}
               renderValue={(selected) => (selected as string[]).join(', ')}
             >
-              <MenuItem value="All">Todos</MenuItem>
-              <MenuItem value="Message">Mensagem</MenuItem>
-              <MenuItem value="ReadReceipt">Confirmação de Leitura</MenuItem>
-              <MenuItem value="Presence">Presença</MenuItem>
-              <MenuItem value="HistorySync">Sincronização de Histórico</MenuItem>
-              <MenuItem value="ChatPresence">Presença no Chat</MenuItem>
+              {SUPPORTED_EVENT_TYPES.map((eventType) => (
+                <MenuItem key={eventType} value={eventType}>
+                  {EVENT_TYPE_LABELS[eventType] || eventType}
+                </MenuItem>
+              ))}
             </Select>
           </FormControl>
         </DialogContent>
@@ -1382,6 +1452,25 @@ const Instances: React.FC = () => {
                   '& .MuiInputLabel-root': { color: '#8696a0' }
                 }}
               />
+              {!editingInstance.connected && (
+                <TextField
+                  label="Proxy URL (opcional)"
+                  placeholder="Ex: http://proxy:port ou socks5://user:pass@proxy:port"
+                  fullWidth
+                  value={editingInstance.proxy_url || ''}
+                  onChange={(e) => setEditingInstance({ ...editingInstance, proxy_url: e.target.value })}
+                  sx={{
+                    '& .MuiOutlinedInput-root': {
+                      bgcolor: '#2a3942',
+                      color: '#e9edef',
+                      '& fieldset': { borderColor: '#374045' },
+                      '&:hover fieldset': { borderColor: '#00a884' },
+                      '&.Mui-focused fieldset': { borderColor: '#00a884' }
+                    },
+                    '& .MuiInputLabel-root': { color: '#8696a0' }
+                  }}
+                />
+              )}
               <FormControl fullWidth>
                 <InputLabel sx={{ color: '#8696a0' }}>Eventos</InputLabel>
                 <Select
@@ -1398,12 +1487,11 @@ const Instances: React.FC = () => {
                     '&.Mui-focused .MuiOutlinedInput-notchedOutline': { borderColor: '#00a884' }
                   }}
                 >
-                  <MenuItem value="All">Todos</MenuItem>
-                  <MenuItem value="Message">Mensagem</MenuItem>
-                  <MenuItem value="ReadReceipt">Confirmação de Leitura</MenuItem>
-                  <MenuItem value="Presence">Presença</MenuItem>
-                  <MenuItem value="HistorySync">Sincronização de Histórico</MenuItem>
-                  <MenuItem value="ChatPresence">Presença no Chat</MenuItem>
+                  {SUPPORTED_EVENT_TYPES.map((eventType) => (
+                    <MenuItem key={eventType} value={eventType}>
+                      {EVENT_TYPE_LABELS[eventType] || eventType}
+                    </MenuItem>
+                  ))}
                 </Select>
               </FormControl>
             </Box>
@@ -1421,6 +1509,75 @@ const Instances: React.FC = () => {
           </Button>
           <Button 
             onClick={handleEdit} 
+            variant="contained"
+            sx={{
+              bgcolor: '#00a884',
+              color: '#fff',
+              '&:hover': {
+                bgcolor: '#00a884',
+                filter: 'brightness(1.1)'
+              }
+            }}
+          >
+            Salvar
+          </Button>
+        </DialogActions>
+      </Dialog>
+
+      <Dialog 
+        open={openProxyDialog} 
+        onClose={() => setOpenProxyDialog(false)}
+        maxWidth="sm"
+        fullWidth
+      >
+        <DialogTitle sx={{ 
+          bgcolor: '#202c33', 
+          color: '#e9edef',
+          borderBottom: '1px solid #374045'
+        }}>
+          Configurar Proxy - {selectedInstanceForProxy?.name}
+        </DialogTitle>
+        <DialogContent sx={{ bgcolor: '#202c33', pt: 2 }}>
+          <Box sx={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
+            <TextField
+              label="Proxy URL"
+              placeholder="Ex: http://proxy:port ou socks5://user:pass@proxy:port"
+              fullWidth
+              value={proxyUrl}
+              onChange={(e) => setProxyUrl(e.target.value)}
+              sx={{
+                '& .MuiOutlinedInput-root': {
+                  bgcolor: '#2a3942',
+                  color: '#e9edef',
+                  '& fieldset': { borderColor: '#374045' },
+                  '&:hover fieldset': { borderColor: '#00a884' },
+                  '&.Mui-focused fieldset': { borderColor: '#00a884' }
+                },
+                '& .MuiInputLabel-root': { color: '#8696a0' }
+              }}
+            />
+            <Typography variant="body2" sx={{ color: '#8696a0', mt: 1 }}>
+              Deixe em branco para desabilitar o proxy. Formatos suportados: HTTP e SOCKS5.
+            </Typography>
+          </Box>
+        </DialogContent>
+        <DialogActions sx={{ bgcolor: '#202c33', borderTop: '1px solid #374045', p: 2 }}>
+          <Button 
+            onClick={() => setOpenProxyDialog(false)}
+            sx={{ 
+              color: '#8696a0',
+              '&:hover': { color: '#e9edef' }
+            }}
+          >
+            Cancelar
+          </Button>
+          <Button 
+            onClick={() => {
+              if (selectedInstanceForProxy) {
+                handleSetProxy(selectedInstanceForProxy, proxyUrl);
+                setOpenProxyDialog(false);
+              }
+            }}
             variant="contained"
             sx={{
               bgcolor: '#00a884',
