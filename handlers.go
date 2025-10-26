@@ -196,7 +196,13 @@ func (s *server) Connect() http.HandlerFunc {
 		}
 
 		if clientPointer[userid] != nil {
-			s.Respond(w, r, http.StatusInternalServerError, errors.New("Already Connected"))
+			response := map[string]interface{}{"webhook": webhook, "jid": jid, "details": "Already Connected"}
+			responseJson, err := json.Marshal(response)
+			if err != nil {
+				s.Respond(w, r, http.StatusInternalServerError, err)
+				return
+			}
+			s.Respond(w, r, http.StatusOK, string(responseJson))
 			return
 		} else {
 
@@ -688,6 +694,7 @@ func (s *server) SendDocument() http.HandlerFunc {
 		Document    string
 		FileName    string
 		Id          string
+		MimeType    string
 		ContextInfo waProto.ContextInfo
 	}
 
@@ -742,7 +749,7 @@ func (s *server) SendDocument() http.HandlerFunc {
 		var uploaded whatsmeow.UploadResponse
 		var filedata []byte
 
-		if t.Document[0:29] == "data:application/octet-stream" {
+		if strings.HasPrefix(t.Document, "data:") {
 			dataURL, err := dataurl.DecodeString(t.Document)
 			if err != nil {
 				s.Respond(w, r, http.StatusBadRequest, errors.New("Could not decode base64 encoded data from payload"))
@@ -754,18 +761,30 @@ func (s *server) SendDocument() http.HandlerFunc {
 					s.Respond(w, r, http.StatusInternalServerError, errors.New(fmt.Sprintf("Failed to upload file: %v", err)))
 					return
 				}
+				// Use MIME type from data URL if not provided in payload
+				if t.MimeType == "" && dataURL.MediaType.ContentType() != "" {
+					t.MimeType = dataURL.MediaType.ContentType()
+				}
 			}
 		} else {
-			s.Respond(w, r, http.StatusBadRequest, errors.New("Document data should start with \"data:application/octet-stream;base64,\""))
+			s.Respond(w, r, http.StatusBadRequest, errors.New("Document data should be a valid data URI (e.g., \"data:application/pdf;base64,...\" or \"data:application/vnd.openxmlformats-officedocument.wordprocessingml.document;base64,...\")"))
 			return
 		}
+
+		// Determine final MIME type
+		finalMimeType := func() string {
+			if t.MimeType != "" {
+				return t.MimeType
+			}
+			return http.DetectContentType(filedata)
+		}()
 
 		msg := &waProto.Message{DocumentMessage: &waProto.DocumentMessage{
 			URL:           proto.String(uploaded.URL),
 			FileName:      &t.FileName,
 			DirectPath:    proto.String(uploaded.DirectPath),
 			MediaKey:      uploaded.MediaKey,
-			Mimetype:      proto.String(http.DetectContentType(filedata)),
+			Mimetype:      proto.String(finalMimeType),
 			FileEncSHA256: uploaded.FileEncSHA256,
 			FileSHA256:    uploaded.FileSHA256,
 			FileLength:    proto.Uint64(uint64(len(filedata))),
@@ -1334,11 +1353,10 @@ func (s *server) SetGroupAnnounce() http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 
 		txtid := r.Context().Value("userinfo").(Values).Get("Id")
-
 		userid, _ := strconv.Atoi(txtid)
 
 		if clientPointer[userid] == nil {
-			s.Respond(w, r, http.StatusInternalServerError, errors.New("No session"))
+			s.Respond(w, r, http.StatusInternalServerError, errors.New("no session"))
 			return
 		}
 
@@ -1346,24 +1364,110 @@ func (s *server) SetGroupAnnounce() http.HandlerFunc {
 		var t setGroupAnnounceStruct
 		err := decoder.Decode(&t)
 		if err != nil {
-			s.Respond(w, r, http.StatusBadRequest, errors.New("Could not decode Payload"))
+			s.Respond(w, r, http.StatusBadRequest, errors.New("could not decode Payload"))
 			return
 		}
 
 		group, ok := parseJID(t.GroupJID)
 		if !ok {
-			s.Respond(w, r, http.StatusBadRequest, errors.New("Could not parse Group JID"))
+			s.Respond(w, r, http.StatusBadRequest, errors.New("could not parse Group JID"))
 			return
 		}
+
+		// Verify user is admin of the group
+		groupInfo, err := clientPointer[userid].GetGroupInfo(group)
+		if err != nil {
+			log.Error().
+				Str("error", fmt.Sprintf("%v", err)).
+				Str("group", group.String()).
+				Msg("failed to get group info")
+			s.Respond(w, r, http.StatusInternalServerError, errors.New("failed to get group info"))
+			return
+		}
+
+		// Check if user is admin
+		userJID := clientPointer[userid].Store.ID
+		isAdmin := false
+
+		// Normalize user JID by removing device suffix (e.g., :53)
+		userJIDStr := userJID.String()
+		if idx := strings.Index(userJIDStr, ":"); idx != -1 {
+			userJIDStr = userJIDStr[:idx] + "@" + strings.Split(userJIDStr, "@")[1]
+		}
+
+		log.Info().
+			Str("user_jid", userJID.String()).
+			Str("user_jid_normalized", userJIDStr).
+			Str("group", group.String()).
+			Int("participants_count", len(groupInfo.Participants)).
+			Msg("checking admin status")
+
+		for i, participant := range groupInfo.Participants {
+			participantJIDStr := participant.JID.String()
+			jidsMatch := participantJIDStr == userJIDStr
+
+			log.Info().
+				Int("participant_index", i).
+				Str("participant_jid", participantJIDStr).
+				Bool("is_admin", participant.IsAdmin).
+				Str("user_jid_normalized", userJIDStr).
+				Bool("jids_match", jidsMatch).
+				Msg("checking participant")
+
+			if jidsMatch && participant.IsAdmin {
+				isAdmin = true
+				break
+			}
+		}
+
+		if !isAdmin {
+			log.Warn().
+				Str("group", group.String()).
+				Str("user", userJID.String()).
+				Msg("user is not admin of the group")
+			s.Respond(w, r, http.StatusForbidden, errors.New("only group admins can change announcement settings"))
+			return
+		}
+
+		log.Info().
+			Str("group", group.String()).
+			Bool("announce", t.Announce).
+			Str("user", userJID.String()).
+			Msg("attempting to set group announce")
 
 		err = clientPointer[userid].SetGroupAnnounce(group, t.Announce)
 
 		if err != nil {
-			log.Error().Str("error", fmt.Sprintf("%v", err)).Msg("Failed to set group announce")
-			msg := fmt.Sprintf("Failed to set group announce: %v", err)
-			s.Respond(w, r, http.StatusInternalServerError, msg)
+			log.Error().
+				Str("error", fmt.Sprintf("%v", err)).
+				Str("group", group.String()).
+				Bool("announce", t.Announce).
+				Str("user", userJID.String()).
+				Msg("failed to set group announce")
+			s.Respond(w, r, http.StatusInternalServerError, err)
 			return
 		}
+
+		// Verify the change was applied by getting group info again
+		updatedGroupInfo, err := clientPointer[userid].GetGroupInfo(group)
+		if err != nil {
+			log.Warn().
+				Str("error", fmt.Sprintf("%v", err)).
+				Msg("failed to verify group announce change")
+		} else {
+			log.Info().
+				Str("group", group.String()).
+				Bool("requested_announce", t.Announce).
+				Bool("actual_announce", updatedGroupInfo.IsAnnounce).
+				Str("user", userJID.String()).
+				Msg("group announce status after change")
+		}
+
+		log.Info().
+			Str("group", group.String()).
+			Bool("announce", t.Announce).
+			Str("user", userJID.String()).
+			Msg("successfully set group announce")
 
 		response := map[string]interface{}{"Details": "Group Announce set successfully"}
 		responseJson, err := json.Marshal(response)
@@ -1382,8 +1486,8 @@ func (s *server) SetGroupAnnounce() http.HandlerFunc {
 func (s *server) UpdateGroupParticipants() http.HandlerFunc {
 
 	type updateGroupParticipantsStruct struct {
-		GroupJID string
-		Phone    []string
+		GroupJID     string
+		Participants []string
 		// Action string // add, remove, promote, demote
 		Action string
 	}
@@ -1413,13 +1517,13 @@ func (s *server) UpdateGroupParticipants() http.HandlerFunc {
 			return
 		}
 
-		if len(t.Phone) < 1 {
+		if len(t.Participants) < 1 {
 			s.Respond(w, r, http.StatusBadRequest, errors.New("Missing Phone in Payload"))
 			return
 		}
 		// parse phone numbers
-		phoneParsed := make([]types.JID, len(t.Phone))
-		for i, phone := range t.Phone {
+		phoneParsed := make([]types.JID, len(t.Participants))
+		for i, phone := range t.Participants {
 			phoneParsed[i], ok = parseJID(phone)
 			if !ok {
 				s.Respond(w, r, http.StatusBadRequest, errors.New("Could not parse Phone"))
@@ -1453,8 +1557,7 @@ func (s *server) UpdateGroupParticipants() http.HandlerFunc {
 
 		if err != nil {
 			log.Error().Str("error", fmt.Sprintf("%v", err)).Msg("Failed to change participant group")
-			msg := fmt.Sprintf("Failed to change participant group: %v", err)
-			s.Respond(w, r, http.StatusInternalServerError, msg)
+			s.Respond(w, r, http.StatusInternalServerError, err)
 			return
 		}
 
@@ -1741,7 +1844,7 @@ func (s *server) RemoveGroupPhoto() http.HandlerFunc {
 		userid, _ := strconv.Atoi(txtid)
 
 		if clientPointer[userid] == nil {
-			s.Respond(w, r, http.StatusInternalServerError, errors.New("No session"))
+			s.Respond(w, r, http.StatusInternalServerError, errors.New("no session"))
 			return
 		}
 
@@ -1749,21 +1852,21 @@ func (s *server) RemoveGroupPhoto() http.HandlerFunc {
 		var t removeGroupPhotoStruct
 		err := decoder.Decode(&t)
 		if err != nil {
-			s.Respond(w, r, http.StatusBadRequest, errors.New("Could not decode Payload"))
+			s.Respond(w, r, http.StatusBadRequest, errors.New("could not decode Payload"))
 			return
 		}
 
 		group, ok := parseJID(t.GroupJID)
 		if !ok {
-			s.Respond(w, r, http.StatusBadRequest, errors.New("Could not parse Group JID"))
+			s.Respond(w, r, http.StatusBadRequest, errors.New("could not parse Group JID"))
 			return
 		}
 
 		_, err = clientPointer[userid].SetGroupPhoto(group, nil)
 
 		if err != nil {
-			log.Error().Str("error", fmt.Sprintf("%v", err)).Msg("Failed to remove group photo")
-			msg := fmt.Sprintf("Failed to remove group photo: %v", err)
+			log.Error().Str("error", fmt.Sprintf("%v", err)).Msg("failed to remove group photo")
+			msg := fmt.Sprintf("failed to remove group photo: %v", err)
 			s.Respond(w, r, http.StatusInternalServerError, msg)
 			return
 		}
@@ -3925,10 +4028,11 @@ func (s *server) SetGroupPhoto() http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 
 		txtid := r.Context().Value("userinfo").(Values).Get("Id")
+
 		userid, _ := strconv.Atoi(txtid)
 
 		if clientPointer[userid] == nil {
-			s.Respond(w, r, http.StatusInternalServerError, errors.New("No session"))
+			s.Respond(w, r, http.StatusInternalServerError, errors.New("no session"))
 			return
 		}
 
@@ -3936,41 +4040,54 @@ func (s *server) SetGroupPhoto() http.HandlerFunc {
 		var t setGroupPhotoStruct
 		err := decoder.Decode(&t)
 		if err != nil {
-			s.Respond(w, r, http.StatusBadRequest, errors.New("Could not decode Payload"))
+			s.Respond(w, r, http.StatusBadRequest, errors.New("could not decode Payload"))
 			return
 		}
 
 		group, ok := parseJID(t.GroupJID)
 		if !ok {
-			s.Respond(w, r, http.StatusBadRequest, errors.New("Could not parse Group JID"))
+			s.Respond(w, r, http.StatusBadRequest, errors.New("could not parse Group JID"))
 			return
 		}
 
 		if t.Image == "" {
-			s.Respond(w, r, http.StatusBadRequest, errors.New("Missing Image in Payload"))
+			s.Respond(w, r, http.StatusBadRequest, errors.New("missing Image in Payload"))
 			return
 		}
 
 		var filedata []byte
 
-		if t.Image[0:13] == "data:image/jp" {
-			dataURL, err := dataurl.DecodeString(t.Image)
+		// Check if the image data starts with a valid data URL format
+		if len(t.Image) > 10 && t.Image[0:10] == "data:image" {
+			var dataURL, err = dataurl.DecodeString(t.Image)
 			if err != nil {
-				s.Respond(w, r, http.StatusBadRequest, errors.New("Could not decode base64 encoded data from payload"))
+				s.Respond(w, r, http.StatusBadRequest, errors.New("could not decode base64 encoded data from payload"))
 				return
 			} else {
 				filedata = dataURL.Data
 			}
 		} else {
-			s.Respond(w, r, http.StatusBadRequest, errors.New("Image data should start with \"data:image/jpeg;base64,\""))
+			s.Respond(w, r, http.StatusBadRequest, errors.New("image data should start with \"data:image/\" (supported formats: jpeg, png, gif, webp)"))
+			return
+		}
+
+		// Validate that we have image data
+		if len(filedata) == 0 {
+			s.Respond(w, r, http.StatusBadRequest, errors.New("no image data found in payload"))
+			return
+		}
+
+		// Validate JPEG format (WhatsApp requires JPEG)
+		if len(filedata) < 3 || filedata[0] != 0xFF || filedata[1] != 0xD8 || filedata[2] != 0xFF {
+			s.Respond(w, r, http.StatusBadRequest, errors.New("image must be in JPEG format. WhatsApp only accepts JPEG images for group photos"))
 			return
 		}
 
 		picture_id, err := clientPointer[userid].SetGroupPhoto(group, filedata)
 
 		if err != nil {
-			log.Error().Str("error", fmt.Sprintf("%v", err)).Msg("Failed to set group photo")
-			msg := fmt.Sprintf("Failed to set group photo: %v", err)
+			log.Error().Str("error", fmt.Sprintf("%v", err)).Msg("failed to set group photo")
+			msg := fmt.Sprintf("failed to set group photo: %v", err)
 			s.Respond(w, r, http.StatusInternalServerError, msg)
 			return
 		}
@@ -4291,12 +4408,21 @@ func (s *server) Respond(w http.ResponseWriter, r *http.Request, status int, dat
 		dataenvelope["error"] = err.Error()
 		dataenvelope["success"] = false
 	} else {
-		mydata := make(map[string]interface{})
-		err = json.Unmarshal([]byte(data.(string)), &mydata)
-		if err != nil {
-			log.Error().Str("error", fmt.Sprintf("%v", err)).Msg("Error unmarshalling JSON")
+		// Check if data is a string and try to parse as JSON
+		if str, ok := data.(string); ok {
+			// Try to parse as JSON first
+			var jsonData interface{}
+			if err := json.Unmarshal([]byte(str), &jsonData); err == nil {
+				// It's valid JSON, use it
+				dataenvelope["data"] = jsonData
+			} else {
+				// It's not JSON, treat as plain text message
+				dataenvelope["message"] = str
+			}
+		} else {
+			// Data is not a string, use it directly
+			dataenvelope["data"] = data
 		}
-		dataenvelope["data"] = mydata
 		dataenvelope["success"] = true
 	}
 	data = dataenvelope

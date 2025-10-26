@@ -190,7 +190,7 @@ func (s *server) startClient(userID int, textjid string, token string, subscript
 	if *waDebug == "DEBUG" {
 		clientHttp[userID].SetDebug(true)
 	}
-	clientHttp[userID].SetTimeout(30 * time.Second)
+	clientHttp[userID].SetTimeout(60 * time.Second)
 	clientHttp[userID].SetTLSClientConfig(&tls.Config{InsecureSkipVerify: true})
 	clientHttp[userID].OnError(func(req *resty.Request, err error) {
 		if v, ok := err.(*resty.ResponseError); ok {
