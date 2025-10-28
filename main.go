@@ -228,8 +228,9 @@ func runMigrations(db *sqlx.DB, exPath string) error {
 	var userCount int
 	if err := db.Get(&userCount, "SELECT COUNT(*) FROM users;"); err == nil {
 		if userCount > 0 {
-			log.Info().Msgf("Usuário(s) encontrado(s): %d. Pulando migrações...", userCount)
-			return nil
+			log.Info().Msgf("Usuário(s) encontrado(s): %d. Verificando migrações necessárias...", userCount)
+			// Verificar e adicionar campos que faltam
+			return checkAndAddMissingColumns(db)
 		}
 		log.Warn().Msg("Nenhum usuário encontrado. Rodando migração e inserindo usuário padrão.")
 		return applyMigrationsAndCreateUser(db, exPath)
@@ -237,6 +238,47 @@ func runMigrations(db *sqlx.DB, exPath string) error {
 		log.Warn().Err(err).Msg("Erro consultando usuários (talvez a tabela nem exista). Rodando migração...")
 		return applyMigrationsAndCreateUser(db, exPath)
 	}
+}
+
+func checkAndAddMissingColumns(db *sqlx.DB) error {
+	log.Info().Msg("Verificando colunas faltantes...")
+
+	// Lista de colunas necessárias
+	requiredColumns := []struct {
+		name       string
+		definition string
+	}{
+		{"proxy_url", "TEXT"},
+		{"events", "TEXT NOT NULL DEFAULT 'All'"},
+	}
+
+	for _, col := range requiredColumns {
+		var exists bool
+		err := db.Get(&exists, `
+			SELECT EXISTS (
+				SELECT 1 FROM information_schema.columns 
+				WHERE table_name = 'users' AND column_name = $1
+			)`, col.name)
+
+		if err != nil {
+			log.Error().Err(err).Str("column", col.name).Msg("Erro ao verificar coluna")
+			continue
+		}
+
+		if !exists {
+			log.Info().Str("column", col.name).Msg("Adicionando coluna faltante...")
+			_, err := db.Exec(fmt.Sprintf("ALTER TABLE users ADD COLUMN %s %s", col.name, col.definition))
+			if err != nil {
+				log.Error().Err(err).Str("column", col.name).Msg("Erro ao adicionar coluna")
+				return fmt.Errorf("falha ao adicionar coluna %s: %w", col.name, err)
+			}
+			log.Info().Str("column", col.name).Msg("Coluna adicionada com sucesso")
+		} else {
+			log.Debug().Str("column", col.name).Msg("Coluna já existe")
+		}
+	}
+
+	return nil
 }
 
 func applyMigrationsAndCreateUser(db *sqlx.DB, exPath string) error {
