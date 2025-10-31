@@ -335,7 +335,7 @@ func (mycli *MyClient) myEventHandler(rawEvt interface{}) {
 		postmap["type"] = "AppStateSyncComplete"
 		dowebhook = 1
 		if len(mycli.WAClient.Store.PushName) > 0 && evt.Name == appstate.WAPatchCriticalBlock {
-			err := mycli.WAClient.SendPresence(types.PresenceAvailable)
+			err := mycli.WAClient.SendPresence(context.Background(), types.PresenceAvailable)
 			if err != nil {
 				log.Warn().Err(err).Msg("Failed to send available presence")
 			} else {
@@ -351,7 +351,7 @@ func (mycli *MyClient) myEventHandler(rawEvt interface{}) {
 		}
 		// Send presence available when connecting and when the pushname is changed.
 		// This makes sure that outgoing messages always have the right pushname.
-		err := mycli.WAClient.SendPresence(types.PresenceAvailable)
+		err := mycli.WAClient.SendPresence(context.Background(), types.PresenceAvailable)
 		if err != nil {
 			log.Warn().Err(err).Msg("Failed to send available presence")
 		} else {
@@ -368,7 +368,7 @@ func (mycli *MyClient) myEventHandler(rawEvt interface{}) {
 		dowebhook = 1
 		// Send presence available when connecting and when the pushname is changed.
 		// This makes sure that outgoing messages always have the right pushname.
-		err := mycli.WAClient.SendPresence(types.PresenceAvailable)
+		err := mycli.WAClient.SendPresence(context.Background(), types.PresenceAvailable)
 		if err != nil {
 			log.Warn().Err(err).Msg("Failed to send available presence")
 		} else {
