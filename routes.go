@@ -75,6 +75,7 @@ func (s *server) routes() {
 	s.router.Handle("/session/status", c.Then(s.GetStatus())).Methods("GET")
 	s.router.Handle("/session/qr", c.Then(s.GetQR())).Methods("GET")
 	s.router.Handle("/session/pairphone", c.Then(s.PairPhone())).Methods("POST")
+	s.router.Handle("/session/import-web-creds", c.Then(s.ImportWebCreds())).Methods("POST")
 
 	s.router.Handle("/webhook", c.Then(s.SetWebhook())).Methods("POST")
 	s.router.Handle("/webhook", c.Then(s.GetWebhook())).Methods("GET")
