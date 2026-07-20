@@ -1,4 +1,5 @@
-FROM golang:1.23-alpine3.20 AS builder
+# go.mod exige Go >= 1.25 (1.23 quebrava `go mod download` com GOTOOLCHAIN=local)
+FROM golang:1.25-alpine AS builder
 
 RUN apk update && apk add --no-cache gcc musl-dev gcompat
 

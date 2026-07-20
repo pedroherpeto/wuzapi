@@ -1,5 +1,9 @@
-dbdata/
-files/
+# runtime data: ignora o conteúdo mas MANTÉM a pasta no git via .gitkeep
+# (o Dockerfile faz COPY de dbdata/ e files/ — sem a pasta, o build falha num clone fresco)
+dbdata/*
+!dbdata/.gitkeep
+files/*
+!files/.gitkeep
 wuzapi
 frontend/node_modules
 frontend/package-lock.json

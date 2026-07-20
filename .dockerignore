@@ -1,0 +1,10 @@
+# .dockerignore — não bakar dados de runtime na imagem e reduzir o contexto de build.
+# Mantém APENAS o .gitkeep de files/ e dbdata/ (o Dockerfile faz COPY dessas pastas;
+# sem elas o build falha, mas o conteúdo de runtime — sessões, DBs — não deve entrar).
+files/*
+dbdata/*
+!files/.gitkeep
+!dbdata/.gitkeep
+
+# Nunca necessário no build:
+.git
